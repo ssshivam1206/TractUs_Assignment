@@ -11,3 +11,67 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum ContractStatus {
+  DRAFT
+  FINALIZED
+  ARCHIVED
+}
+
+enum ContractEventType {
+  CREATE
+  UPDATE
+  FINALIZE
+  ARCHIVE
+  DELETE
+}
+
+model Organisation {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contracts      Contract[]
+  contractEvents ContractEvent[]
+}
+
+model Contract {
+  id             String         @id @default(uuid()) @db.Uuid
+  organisationId String         @db.Uuid
+  clientName     String
+  poRefNo        String
+  poDate         DateTime       @db.Date
+  status         ContractStatus @default(DRAFT)
+  fieldData      Json
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  finalizedAt    DateTime?
+  archivedAt     DateTime?
+  deletedAt      DateTime?
+
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  contractEvents ContractEvent[]
+
+  @@index([organisationId, status])
+  @@index([organisationId, clientName])
+  @@index([organisationId, poRefNo])
+  @@index([organisationId, createdAt])
+}
+
+model ContractEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  contractId     String            @db.Uuid
+  organisationId String            @db.Uuid
+  eventType      ContractEventType
+  beforeState    Json?
+  afterState     Json?
+  createdAt      DateTime          @default(now())
+
+  contract     Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([contractId, createdAt])
+  @@index([organisationId, createdAt])
+  @@index([eventType, createdAt])
+}
