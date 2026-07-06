@@ -1,25 +1,48 @@
 import type { Request, Response, Router } from 'express';
 import { Router as createRouter } from 'express';
 import { createSuccessResponse } from '../../common/api-response.js';
-import { readOrganisationId, readRouteParam, sendConflictResponse, sendNotFoundResponse, sendValidationErrorResponse } from '../../common/http.js';
-import { buildContractValidationErrorResponse, validateContractFieldData } from './contracts.validation.js';
-import { ContractNotFoundError, ContractService, ContractWorkflowError, PrismaContractRepository } from './contracts.service.js';
+import {
+  readOrganisationId,
+  readRouteParam,
+  sendConflictResponse,
+  sendNotFoundResponse,
+  sendValidationErrorResponse,
+} from '../../common/http.js';
+import {
+  buildContractValidationErrorResponse,
+  validateContractFieldData,
+} from './contracts.validation.js';
+import {
+  ContractNotFoundError,
+  ContractService,
+  ContractWorkflowError,
+  PrismaContractRepository,
+} from './contracts.service.js';
 
-const contractService = new ContractService(new PrismaContractRepository());
+type ContractServiceLike = Pick<
+  ContractService,
+  'createContract' | 'listContracts' | 'getContract' | 'updateContract' | 'deleteContract'
+>;
 
-export function buildContractsRouter(): Router {
+const defaultContractService = new ContractService(new PrismaContractRepository());
+
+export function buildContractsRouter(contractService: ContractServiceLike = defaultContractService): Router {
   const router = createRouter();
 
-  router.post('/', handleCreateContract);
-  router.get('/', handleListContracts);
-  router.get('/:id', handleGetContract);
-  router.patch('/:id', handleUpdateContract);
-  router.delete('/:id', handleDeleteContract);
+  router.post('/', (req, res) => handleCreateContract(contractService, req, res));
+  router.get('/', (req, res) => handleListContracts(contractService, req, res));
+  router.get('/:id', (req, res) => handleGetContract(contractService, req, res));
+  router.patch('/:id', (req, res) => handleUpdateContract(contractService, req, res));
+  router.delete('/:id', (req, res) => handleDeleteContract(contractService, req, res));
 
   return router;
 }
 
-async function handleCreateContract(req: Request, res: Response) {
+async function handleCreateContract(
+  contractService: ContractServiceLike,
+  req: Request,
+  res: Response,
+) {
   const organisationId = readOrganisationId(req);
   if (!organisationId) {
     return sendValidationErrorResponse(res, 'Organisation scope is required', [
@@ -36,7 +59,11 @@ async function handleCreateContract(req: Request, res: Response) {
   return res.status(201).json(createSuccessResponse(created));
 }
 
-async function handleListContracts(req: Request, res: Response) {
+async function handleListContracts(
+  contractService: ContractServiceLike,
+  req: Request,
+  res: Response,
+) {
   const organisationId = readOrganisationId(req);
   if (!organisationId) {
     return sendValidationErrorResponse(res, 'Organisation scope is required', [
@@ -48,7 +75,7 @@ async function handleListContracts(req: Request, res: Response) {
   return res.status(200).json(createSuccessResponse(contracts));
 }
 
-async function handleGetContract(req: Request, res: Response) {
+async function handleGetContract(contractService: ContractServiceLike, req: Request, res: Response) {
   const organisationId = readOrganisationId(req);
   if (!organisationId) {
     return sendValidationErrorResponse(res, 'Organisation scope is required', [
@@ -75,7 +102,11 @@ async function handleGetContract(req: Request, res: Response) {
   }
 }
 
-async function handleUpdateContract(req: Request, res: Response) {
+async function handleUpdateContract(
+  contractService: ContractServiceLike,
+  req: Request,
+  res: Response,
+) {
   const organisationId = readOrganisationId(req);
   if (!organisationId) {
     return sendValidationErrorResponse(res, 'Organisation scope is required', [
@@ -111,7 +142,11 @@ async function handleUpdateContract(req: Request, res: Response) {
   }
 }
 
-async function handleDeleteContract(req: Request, res: Response) {
+async function handleDeleteContract(
+  contractService: ContractServiceLike,
+  req: Request,
+  res: Response,
+) {
   const organisationId = readOrganisationId(req);
   if (!organisationId) {
     return sendValidationErrorResponse(res, 'Organisation scope is required', [
