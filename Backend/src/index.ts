@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import cors from 'cors';
 import express from 'express';
 import { buildContractsRouter } from './modules/contracts/contracts.routes.js';
 import { buildOrganisationsRouter } from './modules/organisations/organisations.routes.js';
@@ -7,6 +8,7 @@ dotenv.config();
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
