@@ -16,5 +16,22 @@ export type ContractApiObject = {
   deleted_at: string | null;
 };
 
+export type ContractListFilters = {
+  status?: ContractStatus;
+  clientName?: string;
+  contractId?: string;
+  page: number;
+  limit: number;
+  offset: number;
+};
+
+export type ContractListResponse = {
+  items: ContractApiObject[];
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+};
+
 export type ContractCreateInput = ContractFieldData;
-export type ContractUpdateInput = ContractFieldData;
+export type ContractUpdateInput = Partial<ContractFieldData>;

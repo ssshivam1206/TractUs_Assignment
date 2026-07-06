@@ -12,6 +12,10 @@ export function isDraftContractStatus(status: ContractStatus): boolean {
   return status === 'DRAFT';
 }
 
+export function isFinalizedContractStatus(status: ContractStatus): boolean {
+  return status === 'FINALIZED';
+}
+
 export function canTransitionContractStatus(
   currentStatus: ContractStatus,
   nextStatus: ContractStatus,

@@ -9,13 +9,17 @@ import {
   canTransitionContractStatus,
   getAllowedNextStatuses,
   isDraftContractStatus,
+  isFinalizedContractStatus,
   isSameOrganisation,
 } from '../src/modules/contracts/contracts.rules.js';
 import {
   buildContractValidationErrorResponse,
   contractFieldDataSchema,
   getContractValidationDetails,
+  normalizePagination,
+  parseContractListQuery,
   validateContractFieldData,
+  validateContractUpdateFieldData,
 } from '../src/modules/contracts/contracts.validation.js';
 import {
   buildOrganisationValidationErrorResponse,
@@ -91,6 +95,23 @@ describe('contract validation and rules', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a partial contract patch payload', () => {
+    const result = validateContractUpdateFieldData({
+      client_name: 'Acme Trading Pvt Ltd',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an empty contract patch payload', () => {
+    const result = validateContractUpdateFieldData({});
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('At least one field must be provided');
+    }
+  });
+
   it('rejects an empty items array', () => {
     const result = validateContractFieldData({
       client_name: 'Acme Trading',
@@ -162,6 +183,65 @@ describe('contract validation and rules', () => {
     ]);
   });
 
+  it('parses contract list query filters and pagination', () => {
+    const result = parseContractListQuery({
+      status: 'DRAFT',
+      client_name: 'Acme',
+      contract_id: 'contract-1',
+      page: '2',
+      limit: '5',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        status: 'DRAFT',
+        clientName: 'Acme',
+        contractId: 'contract-1',
+        page: 2,
+        limit: 5,
+        offset: 5,
+      },
+    });
+  });
+
+  it('caps the list limit at 50', () => {
+    const result = normalizePagination('3', '999');
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        page: 3,
+        limit: 50,
+        offset: 100,
+      },
+    });
+  });
+
+  it('rejects invalid contract list query values', () => {
+    const result = parseContractListQuery({
+      status: 'UNKNOWN',
+      page: '0',
+      limit: 'abc',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toEqual({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid contract list query',
+          details: [
+            { path: 'status', message: 'status must be one of DRAFT, FINALIZED, ARCHIVED' },
+            { path: 'page', message: 'page must be a positive integer' },
+            { path: 'limit', message: 'limit must be a positive integer' },
+          ],
+        },
+      });
+    }
+  });
+
   it('enforces contract workflow rules', () => {
     expect(canTransitionContractStatus('DRAFT', 'FINALIZED')).toBe(true);
     expect(canTransitionContractStatus('FINALIZED', 'ARCHIVED')).toBe(true);
@@ -172,6 +252,8 @@ describe('contract validation and rules', () => {
     expect(getAllowedNextStatuses('ARCHIVED')).toEqual([]);
     expect(isDraftContractStatus('DRAFT')).toBe(true);
     expect(isDraftContractStatus('FINALIZED')).toBe(false);
+    expect(isFinalizedContractStatus('FINALIZED')).toBe(true);
+    expect(isFinalizedContractStatus('ARCHIVED')).toBe(false);
     expect(isSameOrganisation('org-1', 'org-1')).toBe(true);
     expect(isSameOrganisation('org-1', 'org-2')).toBe(false);
   });

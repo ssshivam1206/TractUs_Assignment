@@ -17,6 +17,10 @@ const contractPayload = {
   items: [{ description: 'Steel coils', quantity: 10, unit_price: 1500 }],
 };
 
+const partialContractUpdatePayload = {
+  client_name: 'Acme Trading Pvt Ltd',
+};
+
 const createdContract = {
   id: 'contract-1',
   organisation_id: 'org-1',
@@ -30,6 +34,27 @@ const createdContract = {
   finalized_at: null,
   archived_at: null,
   deleted_at: null,
+} as const;
+
+const finalizedContract = {
+  ...createdContract,
+  status: 'FINALIZED',
+  finalized_at: '2026-07-06T00:00:00.000Z',
+} as const;
+
+const archivedContract = {
+  ...createdContract,
+  status: 'ARCHIVED',
+  finalized_at: '2026-07-06T00:00:00.000Z',
+  archived_at: '2026-07-07T00:00:00.000Z',
+} as const;
+
+const listContractsResponse = {
+  items: [createdContract],
+  page: 2,
+  limit: 50,
+  total: 3,
+  total_pages: 1,
 } as const;
 
 const organisationPayload = {
@@ -49,12 +74,14 @@ async function startTestApp() {
       ...createdContract,
       organisation_id: organisationId,
     })),
-    listContracts: vi.fn(async () => [createdContract]),
+    listContracts: vi.fn(async () => listContractsResponse),
     getContract: vi.fn(async () => createdContract),
     updateContract: vi.fn(async () => ({
       ...createdContract,
       client_name: 'Acme Trading Pvt Ltd',
     })),
+    finalizeContract: vi.fn(async () => finalizedContract),
+    archiveContract: vi.fn(async () => archivedContract),
     deleteContract: vi.fn(async () => ({
       ...createdContract,
       deleted_at: '2026-07-06T00:00:00.000Z',
@@ -101,7 +128,7 @@ async function request(baseUrl: string, path: string, init?: RequestInit) {
   });
 }
 
-describe('phase 4 http routes', () => {
+describe('phase 4, 5, and 6 http routes', () => {
   let appContext: Awaited<ReturnType<typeof startTestApp>>;
 
   beforeEach(async () => {
@@ -152,16 +179,49 @@ describe('phase 4 http routes', () => {
     });
   });
 
-  it('lists contracts for an organisation', async () => {
-    const response = await request(appContext.baseUrl, '/contracts', {
+  it('lists contracts with parsed search and pagination filters', async () => {
+    const response = await request(
+      appContext.baseUrl,
+      '/contracts?status=DRAFT&client_name=acme&contract_id=contract-1&page=2&limit=99',
+      {
+        headers: {
+          'x-organisation-id': 'org-1',
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(createSuccessResponse(listContractsResponse));
+    expect(appContext.contractService.listContracts).toHaveBeenCalledWith('org-1', {
+      status: 'DRAFT',
+      clientName: 'acme',
+      contractId: 'contract-1',
+      page: 2,
+      limit: 50,
+      offset: 50,
+    });
+  });
+
+  it('rejects invalid contract list pagination', async () => {
+    const response = await request(appContext.baseUrl, '/contracts?page=0&limit=abc', {
       headers: {
         'x-organisation-id': 'org-1',
       },
     });
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual(createSuccessResponse([createdContract]));
-    expect(appContext.contractService.listContracts).toHaveBeenCalledWith('org-1');
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid contract list query',
+        details: [
+          { path: 'page', message: 'page must be a positive integer' },
+          { path: 'limit', message: 'limit must be a positive integer' },
+        ],
+      },
+    });
+    expect(appContext.contractService.listContracts).not.toHaveBeenCalled();
   });
 
   it('returns contract by id', async () => {
@@ -196,17 +256,21 @@ describe('phase 4 http routes', () => {
     });
   });
 
-  it('updates draft contracts', async () => {
+  it('updates draft contracts with a partial patch body', async () => {
     const response = await request(appContext.baseUrl, '/contracts/contract-1', {
       method: 'PATCH',
       headers: {
         'x-organisation-id': 'org-1',
       },
-      body: JSON.stringify(contractPayload),
+      body: JSON.stringify(partialContractUpdatePayload),
     });
 
     expect(response.status).toBe(200);
-    expect(appContext.contractService.updateContract).toHaveBeenCalledWith('org-1', 'contract-1', contractPayload);
+    expect(appContext.contractService.updateContract).toHaveBeenCalledWith(
+      'org-1',
+      'contract-1',
+      partialContractUpdatePayload,
+    );
   });
 
   it('returns conflict for invalid contract transitions', async () => {
@@ -219,7 +283,7 @@ describe('phase 4 http routes', () => {
       headers: {
         'x-organisation-id': 'org-1',
       },
-      body: JSON.stringify(contractPayload),
+      body: JSON.stringify(partialContractUpdatePayload),
     });
 
     expect(response.status).toBe(409);
@@ -228,6 +292,78 @@ describe('phase 4 http routes', () => {
       error: {
         code: 'CONFLICT',
         message: 'Only draft contracts can be updated',
+        details: [],
+      },
+    });
+  });
+
+  it('finalizes draft contracts', async () => {
+    const response = await request(appContext.baseUrl, '/contracts/contract-1/finalize', {
+      method: 'POST',
+      headers: {
+        'x-organisation-id': 'org-1',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(createSuccessResponse(finalizedContract));
+    expect(appContext.contractService.finalizeContract).toHaveBeenCalledWith('org-1', 'contract-1');
+  });
+
+  it('returns conflict for invalid finalize transitions', async () => {
+    appContext.contractService.finalizeContract.mockRejectedValueOnce(
+      new ContractWorkflowError('Only draft contracts can be finalized'),
+    );
+
+    const response = await request(appContext.baseUrl, '/contracts/contract-1/finalize', {
+      method: 'POST',
+      headers: {
+        'x-organisation-id': 'org-1',
+      },
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'CONFLICT',
+        message: 'Only draft contracts can be finalized',
+        details: [],
+      },
+    });
+  });
+
+  it('archives finalized contracts', async () => {
+    const response = await request(appContext.baseUrl, '/contracts/contract-1/archive', {
+      method: 'POST',
+      headers: {
+        'x-organisation-id': 'org-1',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(createSuccessResponse(archivedContract));
+    expect(appContext.contractService.archiveContract).toHaveBeenCalledWith('org-1', 'contract-1');
+  });
+
+  it('returns conflict for invalid archive transitions', async () => {
+    appContext.contractService.archiveContract.mockRejectedValueOnce(
+      new ContractWorkflowError('Only finalized contracts can be archived'),
+    );
+
+    const response = await request(appContext.baseUrl, '/contracts/contract-1/archive', {
+      method: 'POST',
+      headers: {
+        'x-organisation-id': 'org-1',
+      },
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'CONFLICT',
+        message: 'Only finalized contracts can be archived',
         details: [],
       },
     });
