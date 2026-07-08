@@ -200,16 +200,30 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
                 : 'Pick an organisation first to load its contracts from the backend.'}
             </p>
           </div>
-          <div className="premium-pill self-start">
+          <div className="flex flex-col gap-3 self-start sm:flex-row sm:items-center">
             {hasSelection ? (
-              <>
-                <span className="text-slate-400">Total</span>
-                <span className="font-semibold text-slate-950">{data.total}</span>
-                <span>contract{data.total === 1 ? '' : 's'}</span>
-              </>
+              <Link
+                href="/contracts/new"
+                className="inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
+              >
+                Create contract
+              </Link>
             ) : (
-              'No active organisation'
+              <span className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-500 shadow-sm">
+                Select organisation first
+              </span>
             )}
+            <div className="premium-pill self-start">
+              {hasSelection ? (
+                <>
+                  <span className="text-slate-400">Total</span>
+                  <span className="font-semibold text-slate-950">{data.total}</span>
+                  <span>contract{data.total === 1 ? '' : 's'}</span>
+                </>
+              ) : (
+                'No active organisation'
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -363,3 +377,4 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
     </section>
   );
 }
+
