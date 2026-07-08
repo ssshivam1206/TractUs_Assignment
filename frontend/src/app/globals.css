@@ -195,3 +195,28 @@ select {
     transition: none;
   }
 }
+
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.7) 0%, rgba(203, 213, 225, 0.95) 50%, rgba(226, 232, 240, 0.7) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

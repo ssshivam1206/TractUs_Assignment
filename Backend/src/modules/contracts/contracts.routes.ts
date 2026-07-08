@@ -1,4 +1,4 @@
-import type { Request, Response, Router } from 'express';
+﻿import type { Request, Response, Router } from 'express';
 import { Router as createRouter } from 'express';
 import { createSuccessResponse } from '../../common/api-response.js';
 import {
@@ -24,7 +24,14 @@ import type { ContractListFilters } from './contracts.types.js';
 
 type ContractServiceLike = Pick<
   ContractService,
-  'createContract' | 'listContracts' | 'getContract' | 'updateContract' | 'finalizeContract' | 'archiveContract' | 'deleteContract'
+  | 'createContract'
+  | 'listContracts'
+  | 'getContract'
+  | 'listContractEvents'
+  | 'updateContract'
+  | 'finalizeContract'
+  | 'archiveContract'
+  | 'deleteContract'
 >;
 
 const defaultContractService = new ContractService(new PrismaContractRepository());
@@ -37,6 +44,7 @@ export function buildContractsRouter(
   router.post('/', (req, res) => handleCreateContract(contractService, req, res));
   router.get('/', (req, res) => handleListContracts(contractService, req, res));
   router.get('/:id', (req, res) => handleGetContract(contractService, req, res));
+  router.get('/:id/events', (req, res) => handleListContractEvents(contractService, req, res));
   router.patch('/:id', (req, res) => handleUpdateContract(contractService, req, res));
   router.post('/:id/finalize', (req, res) => handleFinalizeContract(contractService, req, res));
   router.post('/:id/archive', (req, res) => handleArchiveContract(contractService, req, res));
@@ -108,6 +116,37 @@ async function handleGetContract(contractService: ContractServiceLike, req: Requ
   try {
     const contract = await contractService.getContract(organisationId, contractId);
     return res.status(200).json(createSuccessResponse(contract));
+  } catch (error) {
+    if (error instanceof ContractNotFoundError) {
+      return sendNotFoundResponse(res, 'Contract not found');
+    }
+
+    throw error;
+  }
+}
+
+async function handleListContractEvents(
+  contractService: ContractServiceLike,
+  req: Request,
+  res: Response,
+) {
+  const organisationId = readOrganisationId(req);
+  if (!organisationId) {
+    return sendValidationErrorResponse(res, 'Organisation scope is required', [
+      { path: 'headers.x-organisation-id', message: 'x-organisation-id header is required' },
+    ]);
+  }
+
+  const contractId = readRouteParam(req, 'id');
+  if (!contractId) {
+    return sendValidationErrorResponse(res, 'Contract id is required', [
+      { path: 'params.id', message: 'id is required' },
+    ]);
+  }
+
+  try {
+    const events = await contractService.listContractEvents(organisationId, contractId);
+    return res.status(200).json(createSuccessResponse(events));
   } catch (error) {
     if (error instanceof ContractNotFoundError) {
       return sendNotFoundResponse(res, 'Contract not found');
@@ -261,3 +300,4 @@ async function handleDeleteContract(
     throw error;
   }
 }
+

@@ -1,6 +1,13 @@
-import type { ContractApiObject, ContractCreateInput, ContractListFilters, ContractListResponse, ContractUpdateInput } from '@/types/contract';
+﻿import type {
+  ContractApiObject,
+  ContractAuditEvent,
+  ContractCreateInput,
+  ContractListFilters,
+  ContractListResponse,
+  ContractUpdateInput,
+} from '@/types/contract';
 import type { Organisation, OrganisationCreateInput } from '@/types/organisation';
-import { createApiClient } from './http';
+import { createApiClient, getApiBaseUrl } from './http';
 import { normalizeApiError, type NormalizedApiError } from './errors';
 
 const client = createApiClient();
@@ -50,6 +57,15 @@ export async function getContract(
   contractId: string,
 ): Promise<ContractApiObject> {
   return client.request<ContractApiObject>(`/contracts/${contractId}`, {
+    organisationId,
+  });
+}
+
+export async function getContractEvents(
+  organisationId: string,
+  contractId: string,
+): Promise<ContractAuditEvent[]> {
+  return client.request<ContractAuditEvent[]>(`/contracts/${contractId}/events`, {
     organisationId,
   });
 }
@@ -110,3 +126,6 @@ export async function deleteContract(
 export function toFriendlyApiError(error: unknown): NormalizedApiError {
   return normalizeApiError(error);
 }
+
+export { getApiBaseUrl };
+

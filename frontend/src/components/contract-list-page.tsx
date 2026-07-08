@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { listContracts, toFriendlyApiError } from '@/lib/api';
+import { getFriendlyApiErrorMessage } from '@/lib/error-copy';
+import { useOrganisation } from '@/state/organisation-context';
 import type { ContractApiObject, ContractListFilters, ContractStatus } from '@/types/contract';
+import { SkeletonCard, SkeletonTableRows } from '@/components/ui-skeletons';
 
 type ContractListState = {
   items: ContractApiObject[];
@@ -83,7 +86,63 @@ function FilterField({
   );
 }
 
+function ContractCard({ contract }: { contract: ContractApiObject }) {
+  return (
+    <article className="rounded-[1.25rem] border border-slate-200 bg-white/90 p-4 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:shadow-md lg:hidden">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold tracking-tight text-slate-950">{contract.id}</p>
+          <p className="mt-1 text-xs text-slate-500">Updated {formatDateTime(contract.updated_at)}</p>
+        </div>
+        <span className={`status-pill ${getStatusTone(contract.status)}`}>{contract.status}</span>
+      </div>
+
+      <dl className="mt-4 grid gap-3 text-sm text-slate-600">
+        <div className="rounded-[1rem] bg-slate-50 px-3 py-2.5">
+          <dt className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Client</dt>
+          <dd className="mt-1 font-medium text-slate-900">{contract.client_name}</dd>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[1rem] bg-slate-50 px-3 py-2.5">
+            <dt className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">PO ref</dt>
+            <dd className="mt-1 font-medium text-slate-900">{contract.po_ref_no}</dd>
+          </div>
+          <div className="rounded-[1rem] bg-slate-50 px-3 py-2.5">
+            <dt className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">PO date</dt>
+            <dd className="mt-1 font-medium text-slate-900">{formatDateOnly(contract.po_date)}</dd>
+          </div>
+        </div>
+      </dl>
+
+      <div className="mt-4 flex items-center justify-end">
+        <Link
+          href={`/contracts/${contract.id}`}
+          className="inline-flex rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
+        >
+          Open
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function ContractListSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:hidden">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+      <div className="hidden lg:block">
+        <SkeletonTableRows rows={4} />
+      </div>
+    </div>
+  );
+}
+
 export function ContractListPage({ organisationId }: { organisationId: string | null }) {
+  const { realtimeVersion } = useOrganisation();
   const [filters, setFilters] = useState<ContractListFilters>({
     status: undefined,
     clientName: '',
@@ -143,7 +202,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
         }
 
         const friendlyError = toFriendlyApiError(loadError);
-        setError(friendlyError.message);
+        setError(getFriendlyApiErrorMessage(friendlyError));
         setData({
           items: [],
           page: 1,
@@ -163,7 +222,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
     return () => {
       cancelled = true;
     };
-  }, [organisationId, requestFilters]);
+  }, [organisationId, requestFilters, realtimeVersion]);
 
   const handleTextFilterChange = (field: 'clientName' | 'contractId', value: string) => {
     setFilters((current) => ({
@@ -184,6 +243,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
   const hasSelection = Boolean(organisationId);
   const hasRows = data.items.length > 0;
   const selectedStatus = filters.status ?? '';
+  const isInitialLoading = hasSelection && isLoading && data.items.length === 0;
 
   return (
     <section className="surface-strong reveal-up reveal-up-delay-1 overflow-hidden rounded-[1.75rem]">
@@ -288,26 +348,22 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
         </FilterField>
       </div>
 
-      <div className="overflow-hidden bg-white">
-        <div className="grid grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-slate-200/80 bg-white px-5 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500 sm:px-6">
-          <span>Contract</span>
-          <span>Client</span>
-          <span>PO ref</span>
-          <span>PO date</span>
-          <span>Status</span>
-          <span>Action</span>
-        </div>
-
-        {!hasSelection ? (
+      <div className="bg-white">
+        {isInitialLoading ? (
+          <div className="px-5 py-6 sm:px-6">
+            <ContractListSkeleton />
+          </div>
+        ) : !hasSelection ? (
           <div className="px-5 py-10 text-sm leading-6 text-slate-600 sm:px-6">
             Select an organisation to load the contract list.
           </div>
-        ) : isLoading ? (
-          <div className="px-5 py-10 text-sm leading-6 text-slate-600 sm:px-6">
-            Loading contracts from the backend...
-          </div>
         ) : error ? (
-          <div className="px-5 py-10 text-sm leading-6 text-rose-600 sm:px-6">{error}</div>
+          <div className="px-5 py-10 sm:px-6">
+            <div className="rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm leading-6 text-rose-700">
+              <p className="font-semibold text-rose-900">Could not load contracts</p>
+              <p className="mt-1">{error}</p>
+            </div>
+          </div>
         ) : !hasRows ? (
           <div className="px-5 py-10 text-sm leading-6 text-slate-600 sm:px-6">
             {isEmptyFilters(filters)
@@ -315,31 +371,55 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
               : 'No contracts match the current filters.'}
           </div>
         ) : (
-          data.items.map((contract) => (
-            <div
-              key={contract.id}
-              className="row-surface grid grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-slate-100 px-5 py-4 text-sm text-slate-700 last:border-b-0 hover:bg-slate-50/70 sm:px-6"
-            >
-              <div>
-                <p className="font-semibold tracking-tight text-slate-950">{contract.id}</p>
-                <p className="mt-1 text-xs text-slate-500">Updated {formatDateTime(contract.updated_at)}</p>
-              </div>
-              <span className="font-medium text-slate-900">{contract.client_name}</span>
-              <span>{contract.po_ref_no}</span>
-              <span>{formatDateOnly(contract.po_date)}</span>
-              <span>
-                <span className={`status-pill ${getStatusTone(contract.status)}`}>{contract.status}</span>
-              </span>
-              <span>
-                <Link
-                  href={`/contracts/${contract.id}`}
-                  className="inline-flex rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
-                >
-                  Open
-                </Link>
-              </span>
+          <div className="space-y-4 px-5 py-5 sm:px-6">
+            <div className="grid gap-4 lg:hidden">
+              {data.items.map((contract) => (
+                <ContractCard key={contract.id} contract={contract} />
+              ))}
             </div>
-          ))
+
+            <div className="hidden lg:block">
+              <div className="grid grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-slate-200/80 bg-white px-1 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <span>Contract</span>
+                <span>Client</span>
+                <span>PO ref</span>
+                <span>PO date</span>
+                <span>Status</span>
+                <span>Action</span>
+              </div>
+              <div className="overflow-hidden rounded-b-[1.25rem] border border-t-0 border-slate-200/80 bg-white">
+                {data.items.map((contract) => (
+                  <div
+                    key={contract.id}
+                    className="row-surface grid grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-slate-100 px-4 py-4 text-sm text-slate-700 last:border-b-0 hover:bg-slate-50/70"
+                  >
+                    <div>
+                      <p className="font-semibold tracking-tight text-slate-950">{contract.id}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Updated {formatDateTime(contract.updated_at)}
+                      </p>
+                    </div>
+                    <span className="font-medium text-slate-900">{contract.client_name}</span>
+                    <span>{contract.po_ref_no}</span>
+                    <span>{formatDateOnly(contract.po_date)}</span>
+                    <span>
+                      <span className={`status-pill ${getStatusTone(contract.status)}`}>
+                        {contract.status}
+                      </span>
+                    </span>
+                    <span>
+                      <Link
+                        href={`/contracts/${contract.id}`}
+                        className="inline-flex rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
+                      >
+                        Open
+                      </Link>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -377,4 +457,3 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
     </section>
   );
 }
-

@@ -1,8 +1,9 @@
-import dotenv from 'dotenv';
+﻿import dotenv from 'dotenv';
 import cors from 'cors';
 import express from 'express';
 import { buildContractsRouter } from './modules/contracts/contracts.routes.js';
 import { buildOrganisationsRouter } from './modules/organisations/organisations.routes.js';
+import { buildRealtimeRouter } from './modules/realtime/realtime.routes.js';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/organisations', buildOrganisationsRouter());
 app.use('/contracts', buildContractsRouter());
+app.use('/events', buildRealtimeRouter());
 
 app.use(
   (
@@ -42,3 +44,4 @@ const PORT = Number(process.env.PORT ?? 8001);
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
 export default app;
+

@@ -1,11 +1,14 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { archiveContract, finalizeContract, getContract, toFriendlyApiError, updateContract } from '@/lib/api';
+import { archiveContract, finalizeContract, getContract, getContractEvents, toFriendlyApiError, updateContract } from '@/lib/api';
+import { getFriendlyApiErrorMessage } from '@/lib/error-copy';
+import { SkeletonCard, SkeletonTimeline } from '@/components/ui-skeletons';
+import { ContractAuditTrail } from '@/components/contract-audit-trail';
 import { OrganisationSelector } from '@/components/organisation-selector';
 import { useOrganisation } from '@/state/organisation-context';
-import type { ContractApiObject, ContractItem, ContractUpdateInput } from '@/types/contract';
+import type { ContractApiObject, ContractAuditEvent, ContractItem, ContractUpdateInput } from '@/types/contract';
 
 type ContractFormState = {
   client_name: string;
@@ -58,21 +61,6 @@ function isValidIsoDate(value: string) {
     parsedDate.getUTCMonth() === month - 1 &&
     parsedDate.getUTCDate() === day
   );
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'Unknown';
-  }
-
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
 }
 
 function formatCurrency(value: number) {
@@ -254,60 +242,79 @@ function SummaryRow({ label, value }: Readonly<{ label: string; value: string }>
 }
 
 export function ContractDetailPage({ contractId }: { contractId: string }) {
-  const { activeOrganisation, activeOrganisationId, isLoading } = useOrganisation();
+  const { activeOrganisation, activeOrganisationId, isLoading, latestContractEvent } = useOrganisation();
   const [contract, setContract] = useState<ContractApiObject | null>(null);
   const [draft, setDraft] = useState<ContractFormState | null>(null);
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [workflowAction, setWorkflowAction] = useState<'finalize' | 'archive' | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [auditEvents, setAuditEvents] = useState<ContractAuditEvent[]>([]);
+  const [isLoadingAuditTrail, setIsLoadingAuditTrail] = useState(true);
+  const [auditTrailError, setAuditTrailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refreshContract = useCallback(async () => {
     if (!activeOrganisationId) {
       return;
     }
 
-    let cancelled = false;
+    setIsLoadingContract(true);
+    setError(null);
+    setNotice(null);
+    setIsEditing(false);
+    setWorkflowAction(null);
 
-    async function loadContract() {
-      setIsLoadingContract(true);
-      setError(null);
-      setNotice(null);
-      setIsEditing(false);
-      setWorkflowAction(null);
+    try {
+      const nextContract = await getContract(activeOrganisationId, contractId);
+      setContract(nextContract);
+      setDraft(createFormState(nextContract));
+    } catch (loadError) {
+      const friendlyError = toFriendlyApiError(loadError);
+      setError(getFriendlyApiErrorMessage(friendlyError));
+      setContract(null);
+      setDraft(null);
+    } finally {
+      setIsLoadingContract(false);
+    }
+  }, [activeOrganisationId, contractId]);
 
-      try {
-        const nextContract = await getContract(activeOrganisationId, contractId);
-        if (cancelled) {
-          return;
-        }
-
-        setContract(nextContract);
-        setDraft(createFormState(nextContract));
-      } catch (loadError) {
-        if (cancelled) {
-          return;
-        }
-
-        const friendlyError = toFriendlyApiError(loadError);
-        setError(friendlyError.message);
-        setContract(null);
-        setDraft(null);
-      } finally {
-        if (!cancelled) {
-          setIsLoadingContract(false);
-        }
-      }
+  const refreshAuditTrail = useCallback(async () => {
+    if (!activeOrganisationId) {
+      return;
     }
 
-    void loadContract();
+    setIsLoadingAuditTrail(true);
+    setAuditTrailError(null);
 
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const nextEvents = await getContractEvents(activeOrganisationId, contractId);
+      setAuditEvents(nextEvents);
+    } catch (loadError) {
+      const friendlyError = toFriendlyApiError(loadError);
+      setAuditTrailError(getFriendlyApiErrorMessage(friendlyError));
+      setAuditEvents([]);
+    } finally {
+      setIsLoadingAuditTrail(false);
+    }
   }, [activeOrganisationId, contractId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshContract();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [refreshContract]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshAuditTrail();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [refreshAuditTrail]);
 
   useEffect(() => {
     if (!notice) {
@@ -317,6 +324,23 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
     const timer = window.setTimeout(() => setNotice(null), 3500);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    if (
+      !latestContractEvent ||
+      latestContractEvent.organisation_id !== activeOrganisationId ||
+      latestContractEvent.contract_id !== contractId
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshContract();
+      void refreshAuditTrail();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [activeOrganisationId, contractId, latestContractEvent, refreshAuditTrail, refreshContract]);
 
   const canEdit = contract?.status === 'DRAFT';
   const patchPreview = useMemo(() => {
@@ -387,7 +411,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
       setNotice(`Contract ${action}d successfully.`);
     } catch (workflowError) {
       const friendlyError = toFriendlyApiError(workflowError);
-      setError(friendlyError.message);
+      setError(getFriendlyApiErrorMessage(friendlyError));
     } finally {
       setWorkflowAction(null);
     }
@@ -422,7 +446,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
       setNotice('Contract saved successfully.');
     } catch (saveError) {
       const friendlyError = toFriendlyApiError(saveError);
-      setError(friendlyError.message);
+      setError(getFriendlyApiErrorMessage(friendlyError));
     } finally {
       setIsSaving(false);
     }
@@ -439,29 +463,6 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
     setIsEditing(false);
   };
 
-  const handleRefresh = async () => {
-    if (!activeOrganisationId) {
-      return;
-    }
-
-    setIsLoadingContract(true);
-    setError(null);
-    setNotice(null);
-    setIsEditing(false);
-
-    try {
-      const nextContract = await getContract(activeOrganisationId, contractId);
-      setContract(nextContract);
-      setDraft(createFormState(nextContract));
-    } catch (loadError) {
-      const friendlyError = toFriendlyApiError(loadError);
-      setError(friendlyError.message);
-      setContract(null);
-      setDraft(null);
-    } finally {
-      setIsLoadingContract(false);
-    }
-  };
 
   return (
     <main className="app-shell min-h-[100dvh] text-slate-950">
@@ -486,7 +487,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
               </div>
               <div className="flex flex-wrap gap-3">
                 <Link href="/" className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 active:scale-[0.98]">Back to dashboard</Link>
-                {activeOrganisationId ? (<button type="button" onClick={() => void handleRefresh()} className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 active:scale-[0.98]">Refresh</button>) : null}
+                {activeOrganisationId ? (<button type="button" onClick={() => void refreshContract()} className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 active:scale-[0.98]">Refresh</button>) : null}
                 {canFinalize ? (<button type="button" disabled={isWorkflowBusy} onClick={() => void handleWorkflowAction('finalize')} className="inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60">{workflowAction === 'finalize' ? 'Finalizing...' : 'Finalize'}</button>) : null}
                 {canArchive ? (<button type="button" disabled={isWorkflowBusy} onClick={() => void handleWorkflowAction('archive')} className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60">{workflowAction === 'archive' ? 'Archiving...' : 'Archive'}</button>) : null}
                 {canEdit ? (<button type="button" onClick={() => setIsEditing((current) => !current)} className="inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]">{isEditing ? 'View mode' : 'Edit draft'}</button>) : null}
@@ -514,7 +515,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                     </div>
                     <span className="premium-pill self-start sm:self-auto">{loadingState ? 'Loading' : statusLabel}</span>
                   </div>
-                  {!hasActiveScope ? (<div className="mt-6 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">Select an organisation in the dashboard to load this contract.</div>) : loadingState ? (<div className="mt-6 space-y-3 text-sm leading-6 text-slate-600"><p>Loading the contract from the backend...</p><p>We are keeping the organisation scope in sync while this happens.</p></div>) : contract ? (
+                  {!hasActiveScope ? (<div className="mt-6 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">Select an organisation in the dashboard to load this contract.</div>) : loadingState ? (<div className="mt-6 grid gap-5"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><SkeletonCard className="min-h-[7.5rem]" /><SkeletonCard className="min-h-[7.5rem]" /><SkeletonCard className="min-h-[7.5rem]" /><SkeletonCard className="min-h-[7.5rem]" /></div><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)]"><div className="space-y-4"><SkeletonCard className="min-h-[22rem]" /><SkeletonCard className="min-h-[8rem]" /></div><div className="space-y-4"><SkeletonCard className="min-h-[16rem]" /><SkeletonTimeline rows={2} /></div></div></div>) : contract ? (
                     <div className="mt-6 grid gap-5">
                       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         <SummaryRow label="Client" value={contract.field_data.client_name} />
@@ -579,15 +580,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                             <pre className="mt-3 max-h-[22rem] overflow-auto rounded-[1rem] border border-slate-200 bg-white p-4 text-[0.8rem] leading-6 text-slate-700">{contractJson}</pre>
                           </div>
 
-                          <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Timeline</p>
-                            <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600">
-                              <p className="flex items-center justify-between gap-3"><span>Created</span><span className="font-semibold text-slate-950">{formatDateTime(contract.created_at)}</span></p>
-                              <p className="flex items-center justify-between gap-3"><span>Updated</span><span className="font-semibold text-slate-950">{formatDateTime(contract.updated_at)}</span></p>
-                              <p className="flex items-center justify-between gap-3"><span>Finalized</span><span className="font-semibold text-slate-950">{contract.finalized_at ? formatDateTime(contract.finalized_at) : 'Not finalized'}</span></p>
-                              <p className="flex items-center justify-between gap-3"><span>Archived</span><span className="font-semibold text-slate-950">{contract.archived_at ? formatDateTime(contract.archived_at) : 'Not archived'}</span></p>
-                            </div>
-                          </div>
+                          <ContractAuditTrail events={auditEvents} isLoading={isLoadingAuditTrail} error={auditTrailError} />
                         </div>
                       </div>
                     </div>
@@ -603,3 +596,4 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
     </main>
   );
 }
+

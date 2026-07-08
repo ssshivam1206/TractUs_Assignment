@@ -2,6 +2,7 @@
 
 import { ContractListPage } from '@/components/contract-list-page';
 import { OrganisationSelector } from '@/components/organisation-selector';
+import { SkeletonCard } from '@/components/ui-skeletons';
 import { useOrganisation } from '@/state/organisation-context';
 
 function Metric({ label, value, note }: { label: string; value: string; note: string }) {
@@ -37,30 +38,40 @@ export function DashboardHome() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Active organisation
-                </p>
-                <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
-                  {activeOrganisation?.name ?? 'No organisation selected'}
-                </p>
-              </div>
-              <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Session status
-                </p>
-                <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
-                  {isUnlocked ? 'Scoped and ready' : 'Selection required'}
-                </p>
-              </div>
-              <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Organisations
-                </p>
-                <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
-                  {organisations.length.toString().padStart(2, '0')}
-                </p>
-              </div>
+              {isLoading ? (
+                <>
+                  <SkeletonCard className="min-h-[7.5rem]" />
+                  <SkeletonCard className="min-h-[7.5rem]" />
+                  <SkeletonCard className="min-h-[7.5rem]" />
+                </>
+              ) : (
+                <>
+                  <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Active organisation
+                    </p>
+                    <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
+                      {activeOrganisation?.name ?? 'No organisation selected'}
+                    </p>
+                  </div>
+                  <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Session status
+                    </p>
+                    <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
+                      {isUnlocked ? 'Scoped and ready' : 'Selection required'}
+                    </p>
+                  </div>
+                  <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Organisations
+                    </p>
+                    <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
+                      {organisations.length.toString().padStart(2, '0')}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>

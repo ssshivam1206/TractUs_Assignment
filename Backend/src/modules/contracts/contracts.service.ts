@@ -1,4 +1,4 @@
-import type { Contract, Prisma } from '../../../generated/prisma/client.js';
+﻿import type { Contract, Prisma } from '../../../generated/prisma/client.js';
 import { prisma } from '../../common/prisma.js';
 import {
   canTransitionContractStatus,
@@ -8,11 +8,21 @@ import {
 } from './contracts.rules.js';
 import type {
   ContractApiObject,
+  ContractEventApiObject,
   ContractListFilters,
   ContractListResponse,
   ContractUpdateInput,
 } from './contracts.types.js';
 import type { ContractFieldData } from './contracts.validation.js';
+import {
+  buildContractRealtimeEvent,
+  type ContractAuditEventInput,
+  type ContractAuditRepository,
+  type ContractRealtimeBroadcaster,
+  mapContractEventToApiObject,
+  PrismaContractAuditRepository,
+} from './contracts.audit.js';
+import { contractRealtimeBroadcaster } from '../realtime/contracts-stream.js';
 
 export class ContractNotFoundError extends Error {
   constructor(message = 'Contract not found') {
@@ -52,6 +62,7 @@ export interface ContractRepository {
     fieldData: ContractFieldData;
   }): Promise<Contract>;
   findById(organisationId: string, contractId: string): Promise<Contract | null>;
+  findByIdIncludingDeleted(organisationId: string, contractId: string): Promise<Contract | null>;
   listByOrganisation(
     organisationId: string,
     filters: ContractListFilters,
@@ -85,6 +96,15 @@ export class PrismaContractRepository implements ContractRepository {
         id: contractId,
         organisationId,
         deletedAt: null,
+      },
+    });
+  }
+
+  async findByIdIncludingDeleted(organisationId: string, contractId: string): Promise<Contract | null> {
+    return prisma.contract.findFirst({
+      where: {
+        id: contractId,
+        organisationId,
       },
     });
   }
@@ -162,7 +182,11 @@ export class PrismaContractRepository implements ContractRepository {
 }
 
 export class ContractService {
-  constructor(private readonly repository: ContractRepository) {}
+  constructor(
+    private readonly repository: ContractRepository,
+    private readonly auditRepository: ContractAuditRepository = new PrismaContractAuditRepository(),
+    private readonly realtimeBroadcaster: ContractRealtimeBroadcaster = contractRealtimeBroadcaster,
+  ) {}
 
   async createContract(
     organisationId: string,
@@ -176,7 +200,16 @@ export class ContractService {
       fieldData: payload,
     });
 
-    return mapContractToApiObject(created);
+    const apiObject = mapContractToApiObject(created);
+    await this.recordLifecycleEvent({
+      contractId: apiObject.id,
+      organisationId,
+      eventType: 'CREATE',
+      beforeState: null,
+      afterState: apiObject,
+    });
+
+    return apiObject;
   }
 
   async listContracts(
@@ -204,6 +237,20 @@ export class ContractService {
     return mapContractToApiObject(contract);
   }
 
+  async listContractEvents(
+    organisationId: string,
+    contractId: string,
+  ): Promise<ContractEventApiObject[]> {
+    const contract = await this.repository.findByIdIncludingDeleted(organisationId, contractId);
+
+    if (!contract) {
+      throw new ContractNotFoundError();
+    }
+
+    const events = await this.auditRepository.listByContract(organisationId, contractId);
+    return events.map(mapContractEventToApiObject);
+  }
+
   async updateContract(
     organisationId: string,
     contractId: string,
@@ -219,6 +266,7 @@ export class ContractService {
       throw new ContractWorkflowError('Only draft contracts can be updated');
     }
 
+    const beforeState = mapContractToApiObject(existing);
     const nextFieldData = mergeContractFieldData(existing.fieldData as ContractFieldData, payload);
     const updated = await this.repository.updateById(contractId, {
       clientName: nextFieldData.client_name,
@@ -226,8 +274,17 @@ export class ContractService {
       poDate: new Date(`${nextFieldData.po_date}T00:00:00.000Z`),
       fieldData: nextFieldData,
     });
+    const afterState = mapContractToApiObject(updated);
 
-    return mapContractToApiObject(updated);
+    await this.recordLifecycleEvent({
+      contractId,
+      organisationId,
+      eventType: 'UPDATE',
+      beforeState,
+      afterState,
+    });
+
+    return afterState;
   }
 
   async finalizeContract(organisationId: string, contractId: string): Promise<ContractApiObject> {
@@ -241,13 +298,23 @@ export class ContractService {
       throw new ContractWorkflowError('Only draft contracts can be finalized');
     }
 
+    const beforeState = mapContractToApiObject(existing);
     const finalizedAt = new Date();
     const updated = await this.repository.updateById(contractId, {
       status: 'FINALIZED',
       finalizedAt,
     });
+    const afterState = mapContractToApiObject(updated);
 
-    return mapContractToApiObject(updated);
+    await this.recordLifecycleEvent({
+      contractId,
+      organisationId,
+      eventType: 'FINALIZE',
+      beforeState,
+      afterState,
+    });
+
+    return afterState;
   }
 
   async archiveContract(organisationId: string, contractId: string): Promise<ContractApiObject> {
@@ -261,13 +328,23 @@ export class ContractService {
       throw new ContractWorkflowError('Only finalized contracts can be archived');
     }
 
+    const beforeState = mapContractToApiObject(existing);
     const archivedAt = new Date();
     const updated = await this.repository.updateById(contractId, {
       status: 'ARCHIVED',
       archivedAt,
     });
+    const afterState = mapContractToApiObject(updated);
 
-    return mapContractToApiObject(updated);
+    await this.recordLifecycleEvent({
+      contractId,
+      organisationId,
+      eventType: 'ARCHIVE',
+      beforeState,
+      afterState,
+    });
+
+    return afterState;
   }
 
   async deleteContract(organisationId: string, contractId: string): Promise<ContractApiObject> {
@@ -281,8 +358,30 @@ export class ContractService {
       throw new ContractWorkflowError('Only draft contracts can be deleted');
     }
 
+    const beforeState = mapContractToApiObject(existing);
     const deleted = await this.repository.softDeleteById(contractId, new Date());
-    return mapContractToApiObject(deleted);
+    const afterState = mapContractToApiObject(deleted);
+
+    await this.recordLifecycleEvent({
+      contractId,
+      organisationId,
+      eventType: 'DELETE',
+      beforeState,
+      afterState,
+    });
+
+    return afterState;
+  }
+
+  private async recordLifecycleEvent(input: ContractAuditEventInput): Promise<void> {
+    await this.auditRepository.recordEvent(input);
+    this.realtimeBroadcaster.publish(
+      buildContractRealtimeEvent({
+        eventType: input.eventType,
+        beforeState: input.beforeState,
+        afterState: input.afterState,
+      }),
+    );
   }
 }
 
@@ -332,3 +431,4 @@ function buildContractListWhereClause(
     ...(filters.contractId ? { id: filters.contractId } : {}),
   };
 }
+

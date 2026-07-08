@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it, vi } from 'vitest';
 import type { ContractStatus } from '../src/modules/contracts/contracts.rules.js';
-import type { ContractListFilters } from '../src/modules/contracts/contracts.types.js';
+import type {
+  ContractApiObject,
+  ContractAuditEventType,
+  ContractListFilters,
+} from '../src/modules/contracts/contracts.types.js';
 import {
   ContractNotFoundError,
   ContractService,
@@ -10,6 +14,12 @@ import {
   type ContractUpdateChanges,
   mapContractToApiObject,
 } from '../src/modules/contracts/contracts.service.js';
+import type {
+  ContractAuditEventInput,
+  ContractAuditRepository,
+  ContractRealtimeBroadcaster,
+} from '../src/modules/contracts/contracts.audit.js';
+
 
 type ContractRecord = {
   id: string;
@@ -24,6 +34,16 @@ type ContractRecord = {
   finalizedAt: Date | null;
   archivedAt: Date | null;
   deletedAt: Date | null;
+};
+
+type AuditRecord = {
+  id: string;
+  contractId: string;
+  organisationId: string;
+  eventType: ContractAuditEventType;
+  beforeState: ContractApiObject | null;
+  afterState: ContractApiObject | null;
+  createdAt: Date;
 };
 
 const baseDate = new Date('2026-07-05T00:00:00.000Z');
@@ -99,6 +119,14 @@ class InMemoryContractRepository implements ContractRepository {
           contract.id === contractId &&
           contract.organisationId === organisationId &&
           contract.deletedAt === null,
+      ) ?? null
+    ) as never;
+  }
+
+  async findByIdIncludingDeleted(organisationId: string, contractId: string) {
+    return (
+      this.items.find(
+        (contract) => contract.id === contractId && contract.organisationId === organisationId,
       ) ?? null
     ) as never;
   }
@@ -179,10 +207,45 @@ class InMemoryContractRepository implements ContractRepository {
   }
 }
 
+class InMemoryAuditRepository implements ContractAuditRepository {
+  public readonly records: AuditRecord[] = [];
+
+  async recordEvent(input: ContractAuditEventInput) {
+    const record: AuditRecord = {
+      id: `event-${this.records.length + 1}`,
+      contractId: input.contractId,
+      organisationId: input.organisationId,
+      eventType: input.eventType,
+      beforeState: input.beforeState,
+      afterState: input.afterState,
+      createdAt: new Date(baseDate.getTime() + this.records.length * 1000),
+    };
+
+    this.records.push(record);
+    return record as never;
+  }
+
+  async listByContract(organisationId: string, contractId: string) {
+    return this.records
+      .filter(
+        (event) => event.organisationId === organisationId && event.contractId === contractId,
+      )
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()) as never;
+  }
+}
+
+function createService(initialContracts: ContractRecord[] = []) {
+  const repository = new InMemoryContractRepository(initialContracts);
+  const auditRepository = new InMemoryAuditRepository();
+  const broadcaster = { publish: vi.fn() } satisfies ContractRealtimeBroadcaster;
+  const service = new ContractService(repository, auditRepository, broadcaster);
+
+  return { repository, auditRepository, broadcaster, service };
+}
+
 describe('contract service', () => {
-  it('creates contracts with the expected repository payload', async () => {
-    const repository = new InMemoryContractRepository();
-    const service = new ContractService(repository);
+  it('creates contracts and records a create audit event', async () => {
+    const { repository, auditRepository, broadcaster, service } = createService();
 
     const result = await service.createContract('org-1', {
       client_name: 'Acme Trading',
@@ -213,10 +276,24 @@ describe('contract service', () => {
       status: 'DRAFT',
       deleted_at: null,
     });
+
+    expect(auditRepository.records).toHaveLength(1);
+    expect(auditRepository.records[0]).toMatchObject({
+      contractId: 'contract-1',
+      organisationId: 'org-1',
+      eventType: 'CREATE',
+      beforeState: null,
+    });
+    expect(auditRepository.records[0]?.afterState).toMatchObject({
+      id: 'contract-1',
+      organisation_id: 'org-1',
+      client_name: 'Acme Trading',
+    });
+    expect(broadcaster.publish).toHaveBeenCalledTimes(1);
   });
 
   it('lists contracts with filters, pagination, and totals', async () => {
-    const repository = new InMemoryContractRepository([
+    const { repository, service } = createService([
       buildContract({
         id: 'contract-1',
         updatedAt: new Date('2026-07-05T00:00:00.000Z'),
@@ -254,7 +331,6 @@ describe('contract service', () => {
         },
       }),
     ]);
-    const service = new ContractService(repository);
 
     const result = await service.listContracts('org-1', {
       status: 'DRAFT',
@@ -288,7 +364,7 @@ describe('contract service', () => {
   });
 
   it('returns contracts ordered by updated time with pagination metadata', async () => {
-    const repository = new InMemoryContractRepository([
+    const { service } = createService([
       buildContract({ id: 'contract-1', updatedAt: new Date('2026-07-05T00:00:00.000Z') }),
       buildContract({
         id: 'contract-2',
@@ -303,7 +379,6 @@ describe('contract service', () => {
         },
       }),
     ]);
-    const service = new ContractService(repository);
 
     const result = await service.listContracts('org-1', {
       page: 1,
@@ -326,8 +401,7 @@ describe('contract service', () => {
   });
 
   it('returns a contract by id', async () => {
-    const repository = new InMemoryContractRepository([buildContract()]);
-    const service = new ContractService(repository);
+    const { service } = createService([buildContract()]);
 
     await expect(service.getContract('org-1', 'contract-1')).resolves.toMatchObject({
       id: 'contract-1',
@@ -336,17 +410,15 @@ describe('contract service', () => {
   });
 
   it('throws when a contract is missing', async () => {
-    const repository = new InMemoryContractRepository();
-    const service = new ContractService(repository);
+    const { service } = createService();
 
     await expect(service.getContract('org-1', 'missing')).rejects.toBeInstanceOf(
       ContractNotFoundError,
     );
   });
 
-  it('updates only draft contracts using a partial payload merge', async () => {
-    const repository = new InMemoryContractRepository([buildContract()]);
-    const service = new ContractService(repository);
+  it('updates only draft contracts using a partial payload merge and records before and after state', async () => {
+    const { repository, auditRepository, broadcaster, service } = createService([buildContract()]);
 
     const result = await service.updateContract('org-1', 'contract-1', {
       client_name: 'Acme Trading Pvt Ltd',
@@ -374,22 +446,28 @@ describe('contract service', () => {
       po_ref_no: 'PO-1001',
       po_date: '2026-07-05',
     });
+    expect(auditRepository.records).toHaveLength(1);
+    expect(auditRepository.records[0]).toMatchObject({
+      eventType: 'UPDATE',
+      beforeState: expect.objectContaining({ client_name: 'Acme Trading' }),
+      afterState: expect.objectContaining({ client_name: 'Acme Trading Pvt Ltd' }),
+    });
+    expect(broadcaster.publish).toHaveBeenCalledTimes(1);
   });
 
   it('rejects updates for non-draft contracts', async () => {
-    const repository = new InMemoryContractRepository([buildContract({ status: 'FINALIZED' })]);
-    const service = new ContractService(repository);
+    const { service, auditRepository } = createService([buildContract({ status: 'FINALIZED' })]);
 
     await expect(
       service.updateContract('org-1', 'contract-1', {
         client_name: 'Acme Trading Pvt Ltd',
       }),
     ).rejects.toEqual(new ContractWorkflowError('Only draft contracts can be updated'));
+    expect(auditRepository.records).toHaveLength(0);
   });
 
-  it('finalizes draft contracts', async () => {
-    const repository = new InMemoryContractRepository([buildContract()]);
-    const service = new ContractService(repository);
+  it('finalizes draft contracts and records lifecycle events', async () => {
+    const { repository, auditRepository, broadcaster, service } = createService([buildContract()]);
 
     const result = await service.finalizeContract('org-1', 'contract-1');
 
@@ -402,20 +480,27 @@ describe('contract service', () => {
     });
     expect(result.status).toBe('FINALIZED');
     expect(result.finalized_at).toBeTruthy();
+    expect(auditRepository.records[0]).toMatchObject({
+      eventType: 'FINALIZE',
+      beforeState: expect.objectContaining({ status: 'DRAFT' }),
+      afterState: expect.objectContaining({ status: 'FINALIZED' }),
+    });
+    expect(broadcaster.publish).toHaveBeenCalledTimes(1);
   });
 
   it('rejects finalizing non-draft contracts', async () => {
-    const repository = new InMemoryContractRepository([buildContract({ status: 'FINALIZED' })]);
-    const service = new ContractService(repository);
+    const { service, auditRepository } = createService([buildContract({ status: 'FINALIZED' })]);
 
     await expect(service.finalizeContract('org-1', 'contract-1')).rejects.toEqual(
       new ContractWorkflowError('Only draft contracts can be finalized'),
     );
+    expect(auditRepository.records).toHaveLength(0);
   });
 
-  it('archives finalized contracts', async () => {
-    const repository = new InMemoryContractRepository([buildContract({ status: 'FINALIZED' })]);
-    const service = new ContractService(repository);
+  it('archives finalized contracts and records lifecycle events', async () => {
+    const { repository, auditRepository, broadcaster, service } = createService([
+      buildContract({ status: 'FINALIZED' }),
+    ]);
 
     const result = await service.archiveContract('org-1', 'contract-1');
 
@@ -428,33 +513,85 @@ describe('contract service', () => {
     });
     expect(result.status).toBe('ARCHIVED');
     expect(result.archived_at).toBeTruthy();
+    expect(auditRepository.records[0]).toMatchObject({
+      eventType: 'ARCHIVE',
+      beforeState: expect.objectContaining({ status: 'FINALIZED' }),
+      afterState: expect.objectContaining({ status: 'ARCHIVED' }),
+    });
+    expect(broadcaster.publish).toHaveBeenCalledTimes(1);
   });
 
   it('rejects archiving non-finalized contracts', async () => {
-    const repository = new InMemoryContractRepository([buildContract()]);
-    const service = new ContractService(repository);
+    const { service, auditRepository } = createService([buildContract()]);
 
     await expect(service.archiveContract('org-1', 'contract-1')).rejects.toEqual(
       new ContractWorkflowError('Only finalized contracts can be archived'),
     );
+    expect(auditRepository.records).toHaveLength(0);
   });
 
-  it('soft deletes only draft contracts', async () => {
-    const repository = new InMemoryContractRepository([buildContract()]);
-    const service = new ContractService(repository);
+  it('soft deletes only draft contracts and records lifecycle events', async () => {
+    const { repository, auditRepository, broadcaster, service } = createService([buildContract()]);
 
     const result = await service.deleteContract('org-1', 'contract-1');
 
     expect(repository.deletions[0]?.contractId).toBe('contract-1');
     expect(result.deleted_at).toBeTruthy();
+    expect(auditRepository.records[0]).toMatchObject({
+      eventType: 'DELETE',
+      beforeState: expect.objectContaining({ deleted_at: null }),
+      afterState: expect.objectContaining({ deleted_at: expect.any(String) }),
+    });
+    expect(broadcaster.publish).toHaveBeenCalledTimes(1);
   });
 
   it('rejects deletes for non-draft contracts', async () => {
-    const repository = new InMemoryContractRepository([buildContract({ status: 'FINALIZED' })]);
-    const service = new ContractService(repository);
+    const { service, auditRepository } = createService([buildContract({ status: 'FINALIZED' })]);
 
     await expect(service.deleteContract('org-1', 'contract-1')).rejects.toEqual(
       new ContractWorkflowError('Only draft contracts can be deleted'),
+    );
+    expect(auditRepository.records).toHaveLength(0);
+  });
+
+  it('returns contract events in chronological order for the selected organisation', async () => {
+    const { auditRepository, service } = createService([buildContract()]);
+    auditRepository.records.push(
+      {
+        id: 'event-2',
+        contractId: 'contract-1',
+        organisationId: 'org-1',
+        eventType: 'UPDATE',
+        beforeState: mapContractToApiObject(buildContract()),
+        afterState: mapContractToApiObject(buildContract({ clientName: 'Updated Client' })),
+        createdAt: new Date('2026-07-05T00:00:02.000Z'),
+      },
+      {
+        id: 'event-1',
+        contractId: 'contract-1',
+        organisationId: 'org-1',
+        eventType: 'CREATE',
+        beforeState: null,
+        afterState: mapContractToApiObject(buildContract()),
+        createdAt: new Date('2026-07-05T00:00:01.000Z'),
+      },
+    );
+
+    const events = await service.listContractEvents('org-1', 'contract-1');
+
+    expect(events.map((event) => event.event_type)).toEqual(['CREATE', 'UPDATE']);
+    expect(events[0]).toMatchObject({
+      contract_id: 'contract-1',
+      organisation_id: 'org-1',
+      before_state: null,
+    });
+  });
+
+  it('throws when contract events are requested for a missing contract', async () => {
+    const { service } = createService();
+
+    await expect(service.listContractEvents('org-1', 'missing')).rejects.toBeInstanceOf(
+      ContractNotFoundError,
     );
   });
 
@@ -468,3 +605,4 @@ describe('contract service', () => {
     });
   });
 });
+

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createContract, toFriendlyApiError } from '@/lib/api';
+import { getFriendlyApiErrorMessage } from '@/lib/error-copy';
 import { useOrganisation } from '@/state/organisation-context';
 import type { ContractCreateInput } from '@/types/contract';
 
@@ -254,7 +255,7 @@ export function ContractCreatePage() {
     setStatusMessage(null);
 
     if (!activeOrganisationId) {
-      setSubmitError('Select an organisation first from the dashboard.');
+      setSubmitError('Select an organisation first from the dashboard before creating a contract.');
       return;
     }
 
@@ -266,11 +267,11 @@ export function ContractCreatePage() {
     setIsSubmitting(true);
     try {
       const created = await createContract(activeOrganisationId, parsedDraft.value);
-      setStatusMessage(`Created contract ${created.id}. Redirecting to detail view...`);
+      setStatusMessage(`Created contract ${created.id}. Redirecting to the contract detail page...`);
       router.push(`/contracts/${created.id}`);
     } catch (error) {
       const friendlyError = toFriendlyApiError(error);
-      setSubmitError(friendlyError.message);
+      setSubmitError(getFriendlyApiErrorMessage(friendlyError));
     } finally {
       setIsSubmitting(false);
     }

@@ -1,4 +1,4 @@
-import type { ApiErrorDetail } from './api';
+﻿import type { ApiErrorDetail } from './api';
 
 export type ContractStatus = 'DRAFT' | 'FINALIZED' | 'ARCHIVED';
 
@@ -35,6 +35,35 @@ export type ContractApiObject = {
   deleted_at: string | null;
 };
 
+export type ContractAuditEventType = 'CREATE' | 'UPDATE' | 'FINALIZE' | 'ARCHIVE' | 'DELETE';
+
+export type ContractAuditEvent = {
+  id: string;
+  contract_id: string;
+  organisation_id: string;
+  event_type: ContractAuditEventType;
+  before_state: ContractApiObject | null;
+  after_state: ContractApiObject | null;
+  created_at: string;
+};
+
+export type ContractRealtimeEventName =
+  | 'contract.created'
+  | 'contract.updated'
+  | 'contract.finalized'
+  | 'contract.archived'
+  | 'contract.deleted';
+
+export type ContractRealtimeEvent = {
+  event_name: ContractRealtimeEventName;
+  contract_id: string;
+  organisation_id: string;
+  old_status: ContractStatus | null;
+  new_status: ContractStatus | null;
+  updated_at: string;
+  client_name: string;
+};
+
 export type ContractListFilters = {
   status?: ContractStatus;
   clientName?: string;
@@ -52,6 +81,8 @@ export type ContractListResponse = {
   total_pages: number;
 };
 
+export type ContractEventListResponse = ContractAuditEvent[];
+
 export type ContractCreateInput = ContractFieldData;
 export type ContractUpdateInput = Partial<ContractFieldData>;
 
@@ -60,3 +91,4 @@ export type ContractValidationError = {
   message: string;
   details: ApiErrorDetail[];
 };
+

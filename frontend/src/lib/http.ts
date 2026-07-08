@@ -1,4 +1,4 @@
-import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
+﻿import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 
 export type ApiClientOptions = {
   baseUrl?: string;
@@ -25,17 +25,14 @@ export class ApiRequestError extends Error {
   }
 }
 
-function getDefaultBaseUrl(): string {
+export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8001';
 }
 
 export function createApiClient(options: ApiClientOptions = {}) {
-  const baseUrl = options.baseUrl ?? getDefaultBaseUrl();
+  const baseUrl = options.baseUrl ?? getApiBaseUrl();
 
-  async function request<T>(
-    path: string,
-    requestOptions: RequestOptions = {},
-  ): Promise<T> {
+  async function request<T>(path: string, requestOptions: RequestOptions = {}): Promise<T> {
     const response = await fetch(new URL(path, baseUrl), {
       method: requestOptions.method ?? 'GET',
       headers: buildHeaders({
@@ -44,9 +41,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
         hasBody: requestOptions.body !== undefined,
       }),
       body:
-        requestOptions.body === undefined
-          ? undefined
-          : JSON.stringify(requestOptions.body),
+        requestOptions.body === undefined ? undefined : JSON.stringify(requestOptions.body),
       signal: requestOptions.signal,
     });
 
@@ -62,10 +57,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     }
 
     if (!isApiSuccessResponse<T>(parsed)) {
-      throw new ApiRequestError(
-        'Unexpected response format from API',
-        response.status,
-      );
+      throw new ApiRequestError('Unexpected response format from API', response.status);
     }
 
     return parsed.data;
@@ -108,9 +100,7 @@ function parseJson(text: string): unknown {
   }
 }
 
-function isApiSuccessResponse<T>(
-  value: unknown,
-): value is ApiSuccessResponse<T> {
+function isApiSuccessResponse<T>(value: unknown): value is ApiSuccessResponse<T> {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -137,3 +127,4 @@ function getErrorMessage(parsed: unknown, status: number): string {
 
   return `Request failed with status ${status}`;
 }
+

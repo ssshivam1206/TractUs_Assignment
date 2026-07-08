@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+﻿import type { Request, Response } from 'express';
 import { createConflictErrorResponse, createNotFoundErrorResponse, createValidationErrorResponse, type ApiErrorResponse } from './api-response.js';
 
 export function sendErrorResponse(res: Response, statusCode: number, payload: ApiErrorResponse): Response {
@@ -42,3 +42,15 @@ export function readRouteParam(req: Request, name: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
+
+export function readQueryParam(req: Request, name: string): string | null {
+  const value = req.query[name];
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
