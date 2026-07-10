@@ -10,6 +10,7 @@
     "allowJs": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "generated/**/*.ts"],
+  "include": ["src/**/*.ts", "generated/**/*.ts", "prisma/**/*.ts"],
   "exclude": ["dist/**/*.ts", "src/**/*.test.ts", "tests/**/*.ts"]
 }
+

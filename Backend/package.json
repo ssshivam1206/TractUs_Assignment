@@ -11,7 +11,8 @@
                     "db:generate":  "prisma generate",
                     "db:migrate":  "prisma migrate dev",
                     "test":  "vitest run",
-                    "test:watch":  "vitest"
+                    "test:watch":  "vitest",
+                    "db:seed":  "npm run build && node dist/prisma/seed.js"
                 },
     "keywords":  [
 
@@ -43,3 +44,4 @@
                             "vitest":  "^4.1.9"
                         }
 }
+

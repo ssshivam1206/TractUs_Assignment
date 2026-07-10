@@ -11,6 +11,7 @@ Node.js and Express backend for the TractUs Contract Operations Console assignme
 - records audit events for create, update, finalize, archive, and delete
 - exposes backend search, filter, and pagination
 - publishes contract realtime events through SSE
+- seeds demo organisations, contracts, and audit history for review
 
 ## Tech stack
 
@@ -55,7 +56,13 @@ npm run db:generate
 npm run db:migrate
 ```
 
-6. Start the backend:
+6. Seed the demo data:
+
+```bash
+npm run db:seed
+```
+
+7. Start the backend:
 
 ```bash
 npm run dev
@@ -71,7 +78,19 @@ npm run lint
 npm run test
 npm run db:generate
 npm run db:migrate
+npm run db:seed
 ```
+
+## Seed data
+
+The seed command creates:
+
+- 2 organisations
+- 5 contracts across both organisations
+- mixed DRAFT, FINALIZED, and ARCHIVED statuses
+- matching audit trail entries for seeded lifecycle changes
+
+The script is deterministic and only replaces its own demo contract and event records, so rerunning it is safe for local review.
 
 ## Key routes
 
@@ -94,17 +113,17 @@ GET    /events/contracts
 
 Completed:
 
-- Phase 1 to Phase 8 core backend implementation
+- Phase 1 to Phase 10 core backend implementation
 - organisation and contract APIs
 - validation rules
 - search, filter, and pagination
 - workflow actions
 - audit trail
 - SSE updates
+- repeatable demo seed data
 - backend tests for core behavior
 
-Still left or not fully formalised:
+Still left:
 
-- Phase 9 seed data as a repeatable seed script or documented seed command
 - Phase 11 deployment and production deployment notes
 - final reviewer-oriented deployment verification steps
