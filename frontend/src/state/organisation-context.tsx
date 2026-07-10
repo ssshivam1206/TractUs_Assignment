@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import {
   createContext,
@@ -21,7 +21,7 @@ type OrganisationContextValue = {
   activeOrganisation: Organisation | null;
   isLoading: boolean;
   error: string | null;
-  setActiveOrganisationId: (organisationId: string) => void;
+  setActiveOrganisationId: (organisationId: string | null) => void;
   refreshOrganisations: () => Promise<void>;
   latestContractEvent: ContractRealtimeEvent | null;
   realtimeVersion: number;
@@ -75,7 +75,11 @@ export function OrganisationProvider({ children }: { children: ReactNode }) {
         return current;
       });
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? 'We could not load organisations. Make sure the backend is running and try again.' : 'Failed to load organisations');
+      setError(
+        refreshError instanceof Error
+          ? 'We could not load organisations. Make sure the backend is running and try again.'
+          : 'Failed to load organisations',
+      );
       setOrganisations([]);
     } finally {
       setIsLoading(false);
@@ -159,7 +163,7 @@ export function OrganisationProvider({ children }: { children: ReactNode }) {
       activeOrganisation,
       isLoading,
       error,
-      setActiveOrganisationId: (organisationId: string) => {
+      setActiveOrganisationId: (organisationId: string | null) => {
         setActiveOrganisationIdState(organisationId);
       },
       refreshOrganisations,
@@ -188,4 +192,3 @@ export function useOrganisation() {
 
   return context;
 }
-

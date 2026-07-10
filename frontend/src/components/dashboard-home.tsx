@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { ContractListPage } from '@/components/contract-list-page';
 import { OrganisationSelector } from '@/components/organisation-selector';
@@ -23,96 +23,72 @@ export function DashboardHome() {
   return (
     <main className="app-shell min-h-[100dvh] text-slate-950">
       <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <header className="surface-strong reveal-up rounded-[2rem] px-6 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
-          <div className="flex flex-col gap-6">
-            <div>
-              <p className="section-kicker">TractUs</p>
-              <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-5xl lg:text-6xl lg:leading-[0.96]">
-                Contract operations that feel calm, clear, and premium.
-              </h1>
-              <p className="section-copy mt-4 max-w-2xl">
-                This frontend keeps the same functionality, but the presentation is now cleaner and
-                more production-ready. The organisation selector, contract list, and empty states
-                live in a simpler layout with stronger hierarchy.
-              </p>
-            </div>
+        <header className="surface-strong reveal-up overflow-hidden rounded-[2rem] border border-slate-200/80">
+          <div className="border-b border-slate-200/80 px-6 py-6 sm:px-7 lg:px-8 lg:py-8">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)] lg:items-center">
+              <div className="max-w-3xl">
+                <p className="section-kicker">TractUs contract operations</p>
+                <h1 className="mt-4 text-4xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.02]">
+                  Review, create, and move contracts from one scoped workspace.
+                </h1>
+                <p className="section-copy mt-4 max-w-xl">
+                  Keep tenant-scoped contracts, workflow actions, and audit visibility in one clean place.
+                </p>
+              </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
               {isLoading ? (
-                <>
-                  <SkeletonCard className="min-h-[7.5rem]" />
-                  <SkeletonCard className="min-h-[7.5rem]" />
-                  <SkeletonCard className="min-h-[7.5rem]" />
-                </>
+                <div className="grid gap-3">
+                  <SkeletonCard className="min-h-[6.2rem]" />
+                  <SkeletonCard className="min-h-[6.2rem]" />
+                </div>
               ) : (
-                <>
-                  <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Active organisation
-                    </p>
-                    <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
-                      {activeOrganisation?.name ?? 'No organisation selected'}
-                    </p>
+                <div className="rounded-[1.6rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(255,255,255,0.98))] p-5 shadow-sm shadow-slate-200/50">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                    <div className="rounded-[1.2rem] border border-slate-200 bg-white px-4 py-4">
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Active organisation</p>
+                      <p className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+                        {activeOrganisation?.name ?? 'No organisation selected'}
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
+                      <div className="rounded-[1.2rem] border border-slate-200 bg-white px-4 py-4">
+                        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Session</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-950">{isUnlocked ? 'Ready' : 'Selection required'}</p>
+                      </div>
+                      <div className="rounded-[1.2rem] border border-slate-200 bg-white px-4 py-4">
+                        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Organisations</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-950">{organisations.length.toString().padStart(2, '0')}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Session status
-                    </p>
-                    <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
-                      {isUnlocked ? 'Scoped and ready' : 'Selection required'}
-                    </p>
-                  </div>
-                  <div className="surface rounded-[1.25rem] px-4 py-4 shadow-sm">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Organisations
-                    </p>
-                    <p className="mt-2 text-base font-semibold tracking-tight text-slate-950">
-                      {organisations.length.toString().padStart(2, '0')}
-                    </p>
-                  </div>
-                </>
+                </div>
               )}
             </div>
           </div>
+
+          <div className="grid gap-4 bg-slate-50/70 px-6 py-5 sm:px-7 lg:grid-cols-3 lg:px-8">
+            <Metric
+              label="Organisations"
+              value={organisations.length.toString().padStart(2, '0')}
+              note="Loaded from the backend and ready for tenant scoping."
+            />
+            <Metric
+              label="Active scope"
+              value={isUnlocked ? 'ON' : 'OFF'}
+              note="Actions unlock after you choose an organisation."
+            />
+            <Metric
+              label="Workspace"
+              value={isUnlocked ? 'Ready' : 'Waiting'}
+              note="Use the selector below to create, review, and update contracts."
+            />
+          </div>
         </header>
 
-        <div className="space-y-6">
+        <section className="space-y-6">
           <OrganisationSelector />
-
-          <div className="surface-strong reveal-up reveal-up-delay-1 rounded-[1.75rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="section-kicker">Workspace status</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
-                  Assignment console at a glance
-                </h2>
-              </div>
-              <span className="premium-pill self-start sm:self-auto">
-                {isUnlocked ? 'Organisation scoped' : 'Waiting for selection'}
-              </span>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <Metric
-                label="Organisations"
-                value={organisations.length.toString().padStart(2, '0')}
-                note="Loaded from the backend and kept in shared state."
-              />
-              <Metric
-                label="Active scope"
-                value={isUnlocked ? 'ON' : 'OFF'}
-                note="Contract requests stay blocked until a tenant is selected."
-              />
-              <Metric
-                label="Last sync"
-                value={isLoading ? '...' : 'Now'}
-                note="We refresh organisations on page load and on demand."
-              />
-            </div>
-          </div>
-
           <ContractListPage key={activeOrganisationId ?? 'no-org'} organisationId={activeOrganisationId} />
-        </div>
+        </section>
       </section>
     </main>
   );

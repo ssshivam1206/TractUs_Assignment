@@ -59,28 +59,24 @@ function getStatusTone(status: ContractStatus) {
     case 'FINALIZED':
       return 'status-finalized';
     case 'ARCHIVED':
-      return 'bg-slate-200 text-slate-700';
+      return 'status-archived';
     default:
       return 'status-draft';
   }
+}
+
+function formatContractKey(contractId: string) {
+  return contractId.slice(-8).toUpperCase();
 }
 
 function isEmptyFilters(filters: ContractListFilters) {
   return !filters.clientName && !filters.contractId && !filters.status;
 }
 
-function FilterField({
-  label,
-  children,
-}: Readonly<{
-  label: string;
-  children: ReactNode;
-}>) {
+function FilterField({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <label className="grid gap-2 text-sm text-slate-600">
-      <span className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </span>
+      <span className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</span>
       {children}
     </label>
   );
@@ -88,38 +84,33 @@ function FilterField({
 
 function ContractCard({ contract }: { contract: ContractApiObject }) {
   return (
-    <article className="rounded-[1.25rem] border border-slate-200 bg-white/90 p-4 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:shadow-md lg:hidden">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight text-slate-950">{contract.id}</p>
-          <p className="mt-1 text-xs text-slate-500">Updated {formatDateTime(contract.updated_at)}</p>
+    <article className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/50 transition duration-200 hover:-translate-y-0.5 hover:shadow-md lg:hidden">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold tracking-tight text-slate-950">{contract.client_name}</p>
+            <p className="mt-1 text-xs text-slate-500">Ref {formatContractKey(contract.id)} - Updated {formatDateTime(contract.updated_at)}</p>
+          </div>
+          <span className={`status-pill ${getStatusTone(contract.status)}`}>{contract.status}</span>
         </div>
-        <span className={`status-pill ${getStatusTone(contract.status)}`}>{contract.status}</span>
       </div>
 
-      <dl className="mt-4 grid gap-3 text-sm text-slate-600">
-        <div className="rounded-[1rem] bg-slate-50 px-3 py-2.5">
-          <dt className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Client</dt>
-          <dd className="mt-1 font-medium text-slate-900">{contract.client_name}</dd>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[1rem] bg-slate-50 px-3 py-2.5">
-            <dt className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">PO ref</dt>
-            <dd className="mt-1 font-medium text-slate-900">{contract.po_ref_no}</dd>
+      <div className="grid gap-3 px-5 py-4 text-sm text-slate-600">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">PO ref</p>
+            <p className="mt-1 font-medium text-slate-900">{contract.po_ref_no}</p>
           </div>
-          <div className="rounded-[1rem] bg-slate-50 px-3 py-2.5">
-            <dt className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">PO date</dt>
-            <dd className="mt-1 font-medium text-slate-900">{formatDateOnly(contract.po_date)}</dd>
+          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">PO date</p>
+            <p className="mt-1 font-medium text-slate-900">{formatDateOnly(contract.po_date)}</p>
           </div>
         </div>
-      </dl>
+      </div>
 
-      <div className="mt-4 flex items-center justify-end">
-        <Link
-          href={`/contracts/${contract.id}`}
-          className="inline-flex rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
-        >
-          Open
+      <div className="flex items-center justify-end px-5 pb-5">
+        <Link href={`/contracts/${contract.id}`} className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition duration-200 hover:bg-slate-50">
+          Open details
         </Link>
       </div>
     </article>
@@ -151,13 +142,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
     limit: DEFAULT_PAGE_SIZE,
     offset: 0,
   });
-  const [data, setData] = useState<ContractListState>({
-    items: [],
-    page: 1,
-    limit: DEFAULT_PAGE_SIZE,
-    total: 0,
-    total_pages: 0,
-  });
+  const [data, setData] = useState<ContractListState>({ items: [], page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, total_pages: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -203,13 +188,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
 
         const friendlyError = toFriendlyApiError(loadError);
         setError(getFriendlyApiErrorMessage(friendlyError));
-        setData({
-          items: [],
-          page: 1,
-          limit: requestFilters.limit ?? DEFAULT_PAGE_SIZE,
-          total: 0,
-          total_pages: 0,
-        });
+        setData({ items: [], page: 1, limit: requestFilters.limit ?? DEFAULT_PAGE_SIZE, total: 0, total_pages: 0 });
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -225,19 +204,11 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
   }, [organisationId, requestFilters, realtimeVersion]);
 
   const handleTextFilterChange = (field: 'clientName' | 'contractId', value: string) => {
-    setFilters((current) => ({
-      ...current,
-      [field]: value,
-      page: 1,
-    }));
+    setFilters((current) => ({ ...current, [field]: value, page: 1 }));
   };
 
   const handleStatusChange = (value: '' | ContractStatus) => {
-    setFilters((current) => ({
-      ...current,
-      status: value || undefined,
-      page: 1,
-    }));
+    setFilters((current) => ({ ...current, status: value || undefined, page: 1 }));
   };
 
   const hasSelection = Boolean(organisationId);
@@ -246,34 +217,29 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
   const isInitialLoading = hasSelection && isLoading && data.items.length === 0;
 
   return (
-    <section className="surface-strong reveal-up reveal-up-delay-1 overflow-hidden rounded-[1.75rem]">
-      <div className="border-b border-slate-200/80 px-5 py-5 sm:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="section-kicker">Contract list</p>
-            <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
-              Backend-driven search and pagination
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+    <section className="surface-strong reveal-up reveal-up-delay-1 overflow-hidden rounded-[2rem] border border-slate-200/80">
+      <div className="border-b border-slate-200/80 px-5 py-5 sm:px-6 lg:px-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="section-kicker">Contracts</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">Active contract register</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
               {hasSelection
-                ? 'These results are scoped to the active organisation and reload whenever the filters change.'
-                : 'Pick an organisation first to load its contracts from the backend.'}
+                ? 'Search, filter, and paginate organisation-scoped contracts from the backend.'
+                : 'Select an organisation to load its contract register.'}
             </p>
           </div>
-          <div className="flex flex-col gap-3 self-start sm:flex-row sm:items-center">
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {hasSelection ? (
-              <Link
-                href="/contracts/new"
-                className="inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
-              >
+              <Link href="/contracts/new" className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-slate-800">
                 Create contract
               </Link>
             ) : (
-              <span className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-500 shadow-sm">
-                Select organisation first
-              </span>
+              <span className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-500">Select organisation first</span>
             )}
-            <div className="premium-pill self-start">
+
+            <div className="premium-pill">
               {hasSelection ? (
                 <>
                   <span className="text-slate-400">Total</span>
@@ -281,179 +247,97 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
                   <span>contract{data.total === 1 ? '' : 's'}</span>
                 </>
               ) : (
-                'No active organisation'
+                'No active scope'
               )}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-3 border-b border-slate-200/80 bg-slate-50/90 p-5 sm:p-6 xl:grid-cols-4">
-        <FilterField label="Client name">
-          <input
-            type="search"
-            value={filters.clientName}
-            onChange={(event) => handleTextFilterChange('clientName', event.target.value)}
-            placeholder="Search by client"
-            disabled={!hasSelection}
-            className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-150 ease-out placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100"
-          />
-        </FilterField>
+      <div className="border-b border-slate-200/80 bg-slate-50/80 px-5 py-5 sm:px-6 lg:px-7">
+        <div className="grid gap-3 xl:grid-cols-4">
+          <FilterField label="Client name">
+            <input type="search" value={filters.clientName} onChange={(event) => handleTextFilterChange('clientName', event.target.value)} placeholder="Search by client" disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100" />
+          </FilterField>
 
-        <FilterField label="Contract id">
-          <input
-            type="search"
-            value={filters.contractId}
-            onChange={(event) => handleTextFilterChange('contractId', event.target.value)}
-            placeholder="Search by id"
-            disabled={!hasSelection}
-            className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-150 ease-out placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100"
-          />
-        </FilterField>
+          <FilterField label="Contract id">
+            <input type="search" value={filters.contractId} onChange={(event) => handleTextFilterChange('contractId', event.target.value)} placeholder="Search by id" disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100" />
+          </FilterField>
 
-        <FilterField label="Status">
-          <select
-            value={selectedStatus}
-            onChange={(event) => handleStatusChange(event.target.value as '' | ContractStatus)}
-            disabled={!hasSelection}
-            className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-150 ease-out focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.label} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </FilterField>
+          <FilterField label="Status">
+            <select value={selectedStatus} onChange={(event) => handleStatusChange(event.target.value as '' | ContractStatus)} disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100">
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.label} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </FilterField>
 
-        <FilterField label="Page size">
-          <select
-            value={filters.limit}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                limit: Number(event.target.value),
-                page: 1,
-              }))
-            }
-            disabled={!hasSelection}
-            className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-150 ease-out focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100"
-          >
-            {[5, 10, 20].map((size) => (
-              <option key={size} value={size}>
-                {size} per page
-              </option>
-            ))}
-          </select>
-        </FilterField>
+          <FilterField label="Page size">
+            <select value={filters.limit} onChange={(event) => setFilters((current) => ({ ...current, limit: Number(event.target.value), page: 1 }))} disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100">
+              {[5, 10, 20].map((size) => (
+                <option key={size} value={size}>{size} per page</option>
+              ))}
+            </select>
+          </FilterField>
+        </div>
       </div>
 
       <div className="bg-white">
         {isInitialLoading ? (
-          <div className="px-5 py-6 sm:px-6">
-            <ContractListSkeleton />
-          </div>
+          <div className="px-5 py-6 sm:px-6 lg:px-7"><ContractListSkeleton /></div>
         ) : !hasSelection ? (
-          <div className="px-5 py-10 text-sm leading-6 text-slate-600 sm:px-6">
-            Select an organisation to load the contract list.
-          </div>
+          <div className="px-5 py-12 sm:px-6 lg:px-7"><div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm leading-6 text-slate-600">Select an organisation to load contracts for that workspace.</div></div>
         ) : error ? (
-          <div className="px-5 py-10 sm:px-6">
-            <div className="rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm leading-6 text-rose-700">
-              <p className="font-semibold text-rose-900">Could not load contracts</p>
-              <p className="mt-1">{error}</p>
-            </div>
-          </div>
+          <div className="px-5 py-8 sm:px-6 lg:px-7"><div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm leading-6 text-rose-700"><p className="font-semibold text-rose-900">Could not load contracts</p><p className="mt-1">{error}</p></div></div>
         ) : !hasRows ? (
-          <div className="px-5 py-10 text-sm leading-6 text-slate-600 sm:px-6">
-            {isEmptyFilters(filters)
-              ? 'No contracts found for this organisation yet.'
-              : 'No contracts match the current filters.'}
-          </div>
+          <div className="px-5 py-12 sm:px-6 lg:px-7"><div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center"><h3 className="text-base font-semibold text-slate-950">{isEmptyFilters(filters) ? 'No contracts yet' : 'No matching contracts'}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{isEmptyFilters(filters) ? 'This organisation does not have any contracts right now.' : 'Try changing the filters to widen the result set.'}</p></div></div>
         ) : (
-          <div className="space-y-4 px-5 py-5 sm:px-6">
+          <div className="px-5 py-5 sm:px-6 lg:px-7">
             <div className="grid gap-4 lg:hidden">
-              {data.items.map((contract) => (
-                <ContractCard key={contract.id} contract={contract} />
-              ))}
+              {data.items.map((contract) => <ContractCard key={contract.id} contract={contract} />)}
             </div>
 
             <div className="hidden lg:block">
-              <div className="grid grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-slate-200/80 bg-white px-1 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <span>Contract</span>
-                <span>Client</span>
-                <span>PO ref</span>
-                <span>PO date</span>
-                <span>Status</span>
-                <span>Action</span>
-              </div>
-              <div className="overflow-hidden rounded-b-[1.25rem] border border-t-0 border-slate-200/80 bg-white">
-                {data.items.map((contract) => (
-                  <div
-                    key={contract.id}
-                    className="row-surface grid grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-slate-100 px-4 py-4 text-sm text-slate-700 last:border-b-0 hover:bg-slate-50/70"
-                  >
-                    <div>
-                      <p className="font-semibold tracking-tight text-slate-950">{contract.id}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Updated {formatDateTime(contract.updated_at)}
-                      </p>
+              <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/40">
+                <div className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.72fr_0.9fr_0.65fr] gap-3 border-b border-slate-200/80 bg-slate-50/90 px-5 py-4 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <span>Client</span>
+                  <span>PO ref</span>
+                  <span>PO date</span>
+                  <span>Status</span>
+                  <span>Updated</span>
+                  <span>Action</span>
+                </div>
+
+                <div className="max-h-[38rem] overflow-auto">
+                  {data.items.map((contract) => (
+                    <div key={contract.id} className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.72fr_0.9fr_0.65fr] gap-3 border-b border-slate-100 px-5 py-4 text-sm text-slate-700 transition duration-150 last:border-b-0 hover:bg-slate-50/70">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold tracking-tight text-slate-950">{contract.client_name}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">Ref {formatContractKey(contract.id)}</p>
+                      </div>
+                      <span className="font-medium text-slate-900">{contract.po_ref_no}</span>
+                      <span>{formatDateOnly(contract.po_date)}</span>
+                      <span><span className={`status-pill ${getStatusTone(contract.status)}`}>{contract.status}</span></span>
+                      <span className="text-slate-500">{formatDateTime(contract.updated_at)}</span>
+                      <span><Link href={`/contracts/${contract.id}`} className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition duration-200 hover:border-slate-300 hover:bg-slate-50">Open</Link></span>
                     </div>
-                    <span className="font-medium text-slate-900">{contract.client_name}</span>
-                    <span>{contract.po_ref_no}</span>
-                    <span>{formatDateOnly(contract.po_date)}</span>
-                    <span>
-                      <span className={`status-pill ${getStatusTone(contract.status)}`}>
-                        {contract.status}
-                      </span>
-                    </span>
-                    <span>
-                      <Link
-                        href={`/contracts/${contract.id}`}
-                        className="inline-flex rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
-                      >
-                        Open
-                      </Link>
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <p className="text-sm text-slate-600">
-          {hasSelection
-            ? `Page ${data.page} of ${Math.max(data.total_pages, 1)}`
-            : 'Select an organisation to see pagination.'}
-        </p>
+      <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-7">
+        <p className="text-sm text-slate-600">{hasSelection ? `Page ${data.page} of ${Math.max(data.total_pages, 1)}` : 'Select an organisation to unlock pagination.'}</p>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={!hasSelection || data.page <= 1 || isLoading}
-            onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            disabled={!hasSelection || data.page >= data.total_pages || isLoading || data.total_pages === 0}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                page: current.page + 1,
-              }))
-            }
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Next
-          </button>
+          <button type="button" disabled={!hasSelection || data.page <= 1 || isLoading} onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, current.page - 1) }))} className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+          <button type="button" disabled={!hasSelection || data.page >= data.total_pages || isLoading || data.total_pages === 0} onClick={() => setFilters((current) => ({ ...current, page: current.page + 1 }))} className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Next</button>
         </div>
       </div>
     </section>
   );
 }
+

@@ -1,4 +1,4 @@
-﻿import type { ContractEvent, Prisma } from '../../../generated/prisma/client.js';
+import { Prisma, type ContractEvent } from '../../../generated/prisma/client.js';
 import { prisma } from '../../common/prisma.js';
 import type {
   ContractAuditEventType,
@@ -33,6 +33,14 @@ const REALTIME_EVENT_NAMES: Record<ContractAuditEventType, ContractRealtimeEvent
   DELETE: 'contract.deleted',
 };
 
+function toPrismaJsonSnapshot(snapshot: ContractApiObject | null) {
+  if (!snapshot) {
+    return Prisma.JsonNull;
+  }
+
+  return snapshot as Prisma.InputJsonValue;
+}
+
 export class PrismaContractAuditRepository implements ContractAuditRepository {
   async recordEvent(input: ContractAuditEventInput): Promise<ContractEvent> {
     return prisma.contractEvent.create({
@@ -40,8 +48,8 @@ export class PrismaContractAuditRepository implements ContractAuditRepository {
         contractId: input.contractId,
         organisationId: input.organisationId,
         eventType: input.eventType,
-        beforeState: input.beforeState as Prisma.InputJsonValue | null,
-        afterState: input.afterState as Prisma.InputJsonValue | null,
+        beforeState: toPrismaJsonSnapshot(input.beforeState),
+        afterState: toPrismaJsonSnapshot(input.afterState),
       },
     });
   }

@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "TractUs Contract Operations Console",
-  description: "Frontend shell for the TractUs contract workflow assignment",
+  title: 'TractUs Contract Operations Console',
+  description: 'Operations dashboard for organisation-scoped contract intake, workflow, and audit history.',
 };
 
 export default function RootLayout({

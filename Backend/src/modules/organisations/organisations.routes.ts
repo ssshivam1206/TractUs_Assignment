@@ -1,7 +1,6 @@
 import type { Request, Response, Router } from 'express';
 import { Router as createRouter } from 'express';
 import { createSuccessResponse } from '../../common/api-response.js';
-import { sendValidationErrorResponse } from '../../common/http.js';
 import { PrismaOrganisationRepository } from './organisations.repository.js';
 import {
   buildOrganisationValidationErrorResponse,
