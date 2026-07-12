@@ -159,6 +159,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
       return;
     }
 
+    const selectedOrganisationId = organisationId;
     let cancelled = false;
 
     async function loadContracts() {
@@ -166,7 +167,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
       setError(null);
 
       try {
-        const response = await listContracts(organisationId, requestFilters);
+        const response = await listContracts(selectedOrganisationId, requestFilters);
         if (cancelled) {
           return;
         }
