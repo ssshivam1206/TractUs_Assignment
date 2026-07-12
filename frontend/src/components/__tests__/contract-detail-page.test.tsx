@@ -5,24 +5,33 @@ import { ContractDetailPage } from '@/components/contract-detail-page';
 import type { ContractApiObject } from '@/types/contract';
 
 const archiveContractMock = vi.fn();
+const deleteContractMock = vi.fn();
 const finalizeContractMock = vi.fn();
 const getContractMock = vi.fn();
 const getContractEventsMock = vi.fn();
+const getContractAttachmentsMock = vi.fn();
 const toFriendlyApiErrorMock = vi.fn();
 const updateContractMock = vi.fn();
+const uploadContractAttachmentMock = vi.fn();
 const useOrganisationMock = vi.fn();
 
 vi.mock('@/lib/api', () => ({
   archiveContract: (...args: unknown[]) => archiveContractMock(...args),
+  deleteContract: (...args: unknown[]) => deleteContractMock(...args),
   finalizeContract: (...args: unknown[]) => finalizeContractMock(...args),
   getContract: (...args: unknown[]) => getContractMock(...args),
   getContractEvents: (...args: unknown[]) => getContractEventsMock(...args),
+  getContractAttachments: (...args: unknown[]) => getContractAttachmentsMock(...args),
   toFriendlyApiError: (...args: unknown[]) => toFriendlyApiErrorMock(...args),
   updateContract: (...args: unknown[]) => updateContractMock(...args),
+  uploadContractAttachment: (...args: unknown[]) => uploadContractAttachmentMock(...args),
 }));
 
 vi.mock('@/state/organisation-context', () => ({
   useOrganisation: () => useOrganisationMock(),
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock('@/components/organisation-selector', () => ({
@@ -62,11 +71,14 @@ function makeContract(status: 'DRAFT' | 'FINALIZED' | 'ARCHIVED'): ContractApiOb
 describe('ContractDetailPage', () => {
   beforeEach(() => {
     archiveContractMock.mockReset();
+    deleteContractMock.mockReset();
     finalizeContractMock.mockReset();
     getContractMock.mockReset();
     getContractEventsMock.mockReset();
+    getContractAttachmentsMock.mockReset();
     toFriendlyApiErrorMock.mockReset();
     updateContractMock.mockReset();
+    uploadContractAttachmentMock.mockReset();
     useOrganisationMock.mockReturnValue({
       activeOrganisation: { id: 'org-b', name: 'Demo Org B' },
       activeOrganisationId: 'org-b',
@@ -74,6 +86,7 @@ describe('ContractDetailPage', () => {
       latestContractEvent: null,
     });
     getContractEventsMock.mockResolvedValue([]);
+    getContractAttachmentsMock.mockResolvedValue([]);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
@@ -131,7 +144,7 @@ describe('ContractDetailPage', () => {
     await waitFor(() => {
       expect(finalizeContractMock).toHaveBeenCalledWith('org-b', 'contract-1');
     });
-    expect(screen.getByText('Contract cannot be finalized now.')).toBeInTheDocument();
+    expect(screen.getAllByText('Contract cannot be finalized now.').length).toBeGreaterThan(0);
   });
 });
 
