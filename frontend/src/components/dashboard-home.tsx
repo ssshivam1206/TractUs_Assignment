@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { ContractListPage } from '@/components/contract-list-page';
 import { OrganisationSelector } from '@/components/organisation-selector';
@@ -32,7 +32,7 @@ export function DashboardHome() {
                   Review, create, and move contracts from one scoped workspace.
                 </h1>
                 <p className="section-copy mt-4 max-w-xl">
-                  Keep tenant-scoped contracts, workflow actions, and audit visibility in one clean place.
+                  Keep contracts, workflow actions, and audit visibility in one clean place.
                 </p>
               </div>
 
@@ -70,7 +70,7 @@ export function DashboardHome() {
             <Metric
               label="Organisations"
               value={organisations.length.toString().padStart(2, '0')}
-              note="Loaded from the backend and ready for tenant scoping."
+              note="Available workspaces for contract review and creation."
             />
             <Metric
               label="Active scope"

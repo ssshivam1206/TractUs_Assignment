@@ -20,6 +20,19 @@ function isValidIsoDate(value: string): boolean {
   );
 }
 
+function normalizeContractFieldDataShape(input: unknown): unknown {
+  if (!isPlainObject(input) || !isPlainObject(input.field_data)) {
+    return input;
+  }
+
+  return {
+    ...input.field_data,
+    client_name: input.client_name ?? input.field_data.client_name,
+    po_ref_no: input.po_ref_no ?? input.field_data.po_ref_no,
+    po_date: input.po_date ?? input.field_data.po_date,
+  };
+}
+
 const contractItemSchema = z
   .object({
     description: z.string().trim().min(1, 'Item description is required'),
@@ -31,7 +44,7 @@ const contractItemSchema = z
   })
   .passthrough();
 
-export const contractFieldDataSchema = z
+const contractFieldDataObjectSchema = z
   .object({
     client_name: z.string().trim().min(1, 'client_name is required'),
     po_ref_no: z.string().trim().min(1, 'po_ref_no is required'),
@@ -45,9 +58,14 @@ export const contractFieldDataSchema = z
   })
   .passthrough();
 
-export const contractUpdateFieldDataSchema = contractFieldDataSchema
-  .partial()
-  .superRefine((value, ctx) => {
+export const contractFieldDataSchema = z.preprocess(
+  normalizeContractFieldDataShape,
+  contractFieldDataObjectSchema,
+);
+
+export const contractUpdateFieldDataSchema = z.preprocess(
+  normalizeContractFieldDataShape,
+  contractFieldDataObjectSchema.partial().superRefine((value, ctx) => {
     if (Object.keys(value).length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -55,7 +73,8 @@ export const contractUpdateFieldDataSchema = contractFieldDataSchema
         path: ['payload'],
       });
     }
-  });
+  }),
+);
 
 export type ContractFieldData = z.infer<typeof contractFieldDataSchema>;
 export type ContractUpdateFieldData = z.infer<typeof contractUpdateFieldDataSchema>;

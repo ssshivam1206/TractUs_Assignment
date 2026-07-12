@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useOrganisation } from '@/state/organisation-context';
 
@@ -59,11 +59,11 @@ export function OrganisationSelector() {
 
         <div className="flex min-h-[5.5rem] items-center rounded-[1.5rem] border border-slate-200 bg-white px-5 py-4 text-sm leading-6 text-slate-600 shadow-sm shadow-slate-200/40">
           {isLoading ? (
-            <p>Loading organisations from the backend.</p>
+            <p>Loading organisations.</p>
           ) : error ? (
             <p className="text-rose-600">{error}</p>
           ) : isEmpty ? (
-            <p>No organisations are available yet. Seed or create one from the backend first.</p>
+            <p>No organisations are available yet. Create one before adding contracts.</p>
           ) : activeOrganisation ? (
             <p>
               Working inside <span className="font-semibold text-slate-950">{activeOrganisation.name}</span>.

@@ -49,7 +49,8 @@ function isContractRealtimeEventName(value: string): value is ContractRealtimeEv
 
 export function OrganisationProvider({ children }: { children: ReactNode }) {
   const [organisations, setOrganisations] = useState<Organisation[]>([]);
-  const [activeOrganisationId, setActiveOrganisationIdState] = useState<string | null>(readPersistedOrganisationId);
+  const [activeOrganisationId, setActiveOrganisationIdState] = useState<string | null>(null);
+  const [hasRestoredPersistedOrganisation, setHasRestoredPersistedOrganisation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [latestContractEvent, setLatestContractEvent] = useState<ContractRealtimeEvent | null>(null);
@@ -88,6 +89,15 @@ export function OrganisationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      setActiveOrganisationIdState(readPersistedOrganisationId());
+      setHasRestoredPersistedOrganisation(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
       void refreshOrganisations();
     }, 0);
 
@@ -95,13 +105,17 @@ export function OrganisationProvider({ children }: { children: ReactNode }) {
   }, [refreshOrganisations]);
 
   useEffect(() => {
+    if (!hasRestoredPersistedOrganisation) {
+      return;
+    }
+
     if (!activeOrganisationId) {
       window.localStorage.removeItem(ORGANISATION_STORAGE_KEY);
       return;
     }
 
     window.localStorage.setItem(ORGANISATION_STORAGE_KEY, activeOrganisationId);
-  }, [activeOrganisationId]);
+  }, [activeOrganisationId, hasRestoredPersistedOrganisation]);
 
   useEffect(() => {
     if (!activeOrganisationId || typeof window.EventSource === 'undefined') {

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import type { ContractAuditEvent } from '@/types/contract';
 import { Skeleton } from '@/components/ui-skeletons';
@@ -96,7 +96,7 @@ export function ContractAuditTrail({
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Audit trail</p>
           <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">Lifecycle history across the contract</h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Every server-confirmed contract action is recorded here so you can follow status, ownership, and payload changes in sequence.
+            Every contract action is recorded here so status changes remain easy to follow.
           </p>
         </div>
         <span className="premium-pill self-start sm:self-auto whitespace-nowrap">{events.length} events</span>

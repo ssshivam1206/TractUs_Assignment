@@ -31,6 +31,18 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
+function normalizeCreatePayloadShape(input: Record<string, unknown>): Record<string, unknown> {
+  if (!isPlainObject(input.field_data)) {
+    return input;
+  }
+
+  return {
+    ...input.field_data,
+    client_name: input.client_name ?? input.field_data.client_name,
+    po_ref_no: input.po_ref_no ?? input.field_data.po_ref_no,
+    po_date: input.po_date ?? input.field_data.po_date,
+  };
+}
 
 function isValidIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -56,31 +68,32 @@ function validateContractDraft(rawText: string): DraftValidationResult {
     return { ok: false, issues: ['The top-level JSON value must be an object.'] };
   }
 
+  const payload = normalizeCreatePayloadShape(parsed);
   const issues: string[] = [];
 
-  if (!isNonEmptyString(parsed.client_name)) {
+  if (!isNonEmptyString(payload.client_name)) {
     issues.push('client_name is required and must be a non-empty string.');
   }
-  if (!isNonEmptyString(parsed.po_ref_no)) {
+  if (!isNonEmptyString(payload.po_ref_no)) {
     issues.push('po_ref_no is required and must be a non-empty string.');
   }
-  if (!isNonEmptyString(parsed.po_date)) {
+  if (!isNonEmptyString(payload.po_date)) {
     issues.push('po_date is required and must be a non-empty string.');
-  } else if (!isValidIsoDate(parsed.po_date)) {
+  } else if (!isValidIsoDate(payload.po_date)) {
     issues.push('po_date must use the YYYY-MM-DD format.');
   }
-  if (parsed.payment_terms !== undefined && !isNonEmptyString(parsed.payment_terms)) {
+  if (payload.payment_terms !== undefined && !isNonEmptyString(payload.payment_terms)) {
     issues.push('payment_terms must be a non-empty string when provided.');
   }
-  if (parsed.delivery_terms !== undefined && !isNonEmptyString(parsed.delivery_terms)) {
+  if (payload.delivery_terms !== undefined && !isNonEmptyString(payload.delivery_terms)) {
     issues.push('delivery_terms must be a non-empty string when provided.');
   }
-  if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
     issues.push('items must be a non-empty array.');
   }
 
-  const normalizedItems = Array.isArray(parsed.items)
-    ? parsed.items.map((item, index) => {
+  const normalizedItems = Array.isArray(payload.items)
+    ? payload.items.map((item, index) => {
         if (!isPlainObject(item)) {
           issues.push(`items[${index}] must be an object.`);
           return item;
@@ -121,19 +134,19 @@ function validateContractDraft(rawText: string): DraftValidationResult {
     return { ok: false, issues };
   }
 
-  const clientName = isNonEmptyString(parsed.client_name) ? parsed.client_name.trim() : '';
-  const poRefNo = isNonEmptyString(parsed.po_ref_no) ? parsed.po_ref_no.trim() : '';
-  const poDate = isNonEmptyString(parsed.po_date) ? parsed.po_date.trim() : '';
+  const clientName = isNonEmptyString(payload.client_name) ? payload.client_name.trim() : '';
+  const poRefNo = isNonEmptyString(payload.po_ref_no) ? payload.po_ref_no.trim() : '';
+  const poDate = isNonEmptyString(payload.po_date) ? payload.po_date.trim() : '';
 
   return {
     ok: true,
     value: {
-      ...(parsed as Record<string, unknown>),
+      ...payload,
       client_name: clientName,
       po_ref_no: poRefNo,
       po_date: poDate,
-      payment_terms: parsed.payment_terms === undefined ? undefined : String(parsed.payment_terms).trim(),
-      delivery_terms: parsed.delivery_terms === undefined ? undefined : String(parsed.delivery_terms).trim(),
+      payment_terms: payload.payment_terms === undefined ? undefined : String(payload.payment_terms).trim(),
+      delivery_terms: payload.delivery_terms === undefined ? undefined : String(payload.delivery_terms).trim(),
       items: normalizedItems,
     } as ContractCreateInput,
   };
@@ -237,8 +250,8 @@ export function ContractCreatePage() {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
                 <p className="section-kicker">Create contract</p>
-                <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-5xl lg:text-[3.8rem] lg:leading-[0.96]">Submit a structured contract payload.</h1>
-                <p className="section-copy mt-4 max-w-2xl">Paste the contract JSON, validate the field shape, and send the payload through the active organisation scope.</p>
+                <h1 className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-5xl lg:text-[3.8rem] lg:leading-[0.96]">Create a contract from structured JSON.</h1>
+                <p className="section-copy mt-4 max-w-2xl">Paste contract details, review the required fields, and create it inside the selected organisation.</p>
               </div>
 
               <div className="flex flex-wrap gap-3">
@@ -249,7 +262,7 @@ export function ContractCreatePage() {
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <SummaryRow label="Active organisation" value={activeOrganisation?.name ?? 'No organisation selected'} />
-              <SummaryRow label="Payload status" value={parsedDraft.ok ? 'Ready to submit' : 'Needs fixes'} />
+              <SummaryRow label="JSON status" value={parsedDraft.ok ? 'Ready to submit' : 'Needs fixes'} />
               <SummaryRow label="Scope status" value={isLoading ? 'Loading' : hasOrganisation ? 'Scoped' : 'Blocked'} />
             </div>
           </div>
@@ -258,9 +271,9 @@ export function ContractCreatePage() {
             <section className="rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/40 sm:p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="section-kicker">Payload editor</p>
+                  <p className="section-kicker">JSON editor</p>
                   <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">Contract JSON</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Keep the raw payload visible so validation feedback and final submission stay easy to inspect.</p>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Keep the contract JSON visible while you review validation feedback and submit with confidence.</p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -286,7 +299,7 @@ export function ContractCreatePage() {
               </div>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm leading-6 text-slate-600">The backend remains the final authority, but this page catches obvious payload issues before the request is submitted.</p>
+                <p className="text-sm leading-6 text-slate-600">Validation catches common JSON issues before the contract is created.</p>
                 <button type="button" disabled={!hasOrganisation || isSubmitting} onClick={() => void handleSubmit()} className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">{isSubmitting ? 'Creating...' : 'Create'}</button>
               </div>
             </section>
@@ -294,7 +307,7 @@ export function ContractCreatePage() {
             <aside className="space-y-5">
               <section className="rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/40 sm:p-6">
                 <p className="section-kicker">Preview</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">Payload summary</h2>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">Contract summary</h2>
                 {draft ? (
                   <div className="mt-5 space-y-3">
                     <SummaryRow label="Client" value={draft.client_name} />
@@ -310,11 +323,11 @@ export function ContractCreatePage() {
 
               <section className="rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/40 sm:p-6">
                 <p className="section-kicker">Required fields</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">Payload expectations</h2>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">Required JSON fields</h2>
                 <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
                   <p>1. Include `client_name`, `po_ref_no`, and `po_date`.</p>
                   <p>2. Keep `items` as a non-empty array with valid quantities and prices.</p>
-                  <p>3. Submit under the selected organisation so the contract is scoped correctly.</p>
+                  <p>3. Submit under the selected organisation so the contract stays in the right workspace.</p>
                 </div>
               </section>
             </aside>

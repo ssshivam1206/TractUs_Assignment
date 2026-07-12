@@ -223,7 +223,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">Active contract register</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               {hasSelection
-                ? 'Search, filter, and paginate organisation-scoped contracts from the backend.'
+                ? 'Search, filter, and review contracts for the selected organisation.'
                 : 'Select an organisation to load its contract register.'}
             </p>
           </div>

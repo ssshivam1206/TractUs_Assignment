@@ -2,8 +2,10 @@
 
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   archiveContract,
+  deleteContract,
   finalizeContract,
   getContract,
   getContractAttachments,
@@ -335,6 +337,7 @@ function getItemTotal(item: ContractItem) {
 }
 
 export function ContractDetailPage({ contractId }: { contractId: string }) {
+  const router = useRouter();
   const {
     activeOrganisation,
     activeOrganisationId,
@@ -346,7 +349,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [workflowAction, setWorkflowAction] = useState<
-    'finalize' | 'archive' | null
+    'finalize' | 'archive' | 'delete' | null
   >(null);
   const [isEditing, setIsEditing] = useState(false);
   const [auditEvents, setAuditEvents] = useState<ContractAuditEvent[]>([]);
@@ -504,6 +507,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
   }, [contract]);
 
   const canFinalize = contract?.status === 'DRAFT';
+  const canDelete = contract?.status === 'DRAFT';
   const canArchive = contract?.status === 'FINALIZED';
   const isWorkflowBusy = workflowAction !== null;
   const hasActiveScope = Boolean(activeOrganisationId);
@@ -557,6 +561,34 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
       setNotice(`Contract ${action}d successfully.`);
     } catch (workflowError) {
       const friendlyError = toFriendlyApiError(workflowError);
+      setError(getFriendlyApiErrorMessage(friendlyError));
+    } finally {
+      setWorkflowAction(null);
+    }
+  }
+
+  async function handleDeleteContract() {
+    if (!contract || !activeOrganisationId || contract.status !== 'DRAFT') {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Delete this draft contract? This removes it from the active contract register.',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setWorkflowAction('delete');
+    setError(null);
+    setNotice(null);
+
+    try {
+      await deleteContract(activeOrganisationId, contract.id);
+      router.push('/');
+    } catch (deleteError) {
+      const friendlyError = toFriendlyApiError(deleteError);
       setError(getFriendlyApiErrorMessage(friendlyError));
     } finally {
       setWorkflowAction(null);
@@ -664,7 +696,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                   and follow the lifecycle history without losing context.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap justify-start gap-3 lg:justify-end">
                 <Link
                   href="/"
                   className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 active:scale-[0.98]"
@@ -709,6 +741,16 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                     className="inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98]"
                   >
                     {isEditing ? 'View mode' : 'Edit draft'}
+                  </button>
+                ) : null}
+                {canDelete ? (
+                  <button
+                    type="button"
+                    disabled={isWorkflowBusy}
+                    onClick={() => void handleDeleteContract()}
+                    className="inline-flex rounded-full border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-rose-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {workflowAction === 'delete' ? 'Deleting...' : 'Delete draft'}
                   </button>
                 ) : null}
               </div>
@@ -831,17 +873,12 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                               <div>
                                 <p className="section-kicker">Draft editor</p>
                                 <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                                  Edit commercial fields and payload data
+                                  Edit commercial fields and line items
                                 </h3>
                                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                                  This editor keeps the existing partial PATCH
-                                  behavior. Only changed values are sent back to
-                                  the backend.
+                                  Update draft fields and line items before moving the contract forward.
                                 </p>
                               </div>
-                              <span className="premium-pill self-start sm:self-auto">
-                                Partial PATCH
-                              </span>
                             </div>
 
                             <div className="mt-6 grid gap-4">
@@ -1039,21 +1076,21 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                         )}
 
                         {canEdit && isEditing ? (
-                          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-950 px-5 py-5 text-white shadow-sm shadow-slate-900/10 sm:px-6">
+                          <div className="rounded-[1.5rem] border border-slate-200 bg-white/95 px-5 py-4 shadow-sm shadow-slate-200/50 sm:px-6">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                               <div>
-                                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
                                   Save controls
                                 </p>
-                                <p className="mt-2 text-sm leading-6 text-slate-200">
+                                <p className="mt-2 text-sm leading-6 text-slate-600">
                                   {patchPreview &&
                                   patchPreview.ok &&
                                   !patchPreview.hasChanges
                                     ? 'No changes detected yet.'
-                                    : 'Only changed fields will be sent to the backend.'}
+                                    : 'Review your edits, then save the updated contract.'}
                                 </p>
                               </div>
-                              <div className="flex flex-wrap gap-3">
+                              <div className="flex flex-wrap justify-start gap-3 lg:justify-end">
                                 <button
                                   type="button"
                                   disabled={
@@ -1062,7 +1099,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                                     !patchPreview.hasChanges
                                   }
                                   onClick={() => void handleSave()}
-                                  className="inline-flex rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex min-w-[10.5rem] justify-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   {isSaving ? 'Saving...' : 'Save changes'}
                                 </button>
@@ -1070,7 +1107,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                                   type="button"
                                   disabled={isSaving}
                                   onClick={handleDiscard}
-                                  className="inline-flex rounded-full border border-slate-700 bg-transparent px-4 py-2.5 text-sm font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex min-w-[10.5rem] justify-center rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   Discard changes
                                 </button>
@@ -1194,9 +1231,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                               Operational readiness and timestamps
                             </h3>
                             <p className="mt-2 text-sm leading-6 text-slate-600">
-                              This side panel keeps the lifecycle notes and
-                              server timestamps together instead of splitting
-                              them into disconnected cards.
+                              This panel keeps lifecycle notes and important timestamps together for quick review.
                             </p>
                           </div>
 
@@ -1263,10 +1298,10 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                               PDF support docs
                             </h3>
                             <p className="mt-2 text-sm leading-6 text-slate-600">
-                              Upload a single PDF per request and keep reviewer-facing attachments with the contract record.
+                              Upload supporting PDF documents and keep them with this contract.
                             </p>
                           </div>
-                          <label className="inline-flex cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50">
+                          <label className="inline-flex shrink-0 cursor-pointer whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50">
                             {isUploadingAttachment ? 'Uploading...' : 'Upload PDF'}
                             <input
                               type="file"
@@ -1329,11 +1364,10 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                           <div>
                             <p className="section-kicker">Contract JSON</p>
                             <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                              Backend payload snapshot
+                              Contract JSON snapshot
                             </h3>
                             <p className="mt-2 text-sm leading-6 text-slate-600">
-                              The raw payload stays available for debugging, but
-                              it no longer takes over the primary reading area.
+                              The saved JSON stays available for quick review without crowding the main contract details.
                             </p>
                           </div>
                           <span className="premium-pill self-start whitespace-nowrap sm:self-auto">
