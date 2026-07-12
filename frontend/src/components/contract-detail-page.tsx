@@ -972,7 +972,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                               </label>
                             </div>
 
-                            {!patchPreview?.ok ? (
+                            {patchPreview && !patchPreview.ok ? (
                               <div className="mt-5 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-4">
                                 <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-amber-700">
                                   Validation details
