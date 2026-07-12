@@ -5,3 +5,4 @@ coverage
 .prisma
 generated/
 .DS_Store
+uploads/

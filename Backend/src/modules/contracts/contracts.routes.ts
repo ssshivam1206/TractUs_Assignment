@@ -1,5 +1,7 @@
-﻿import type { Request, Response, Router } from 'express';
+import path from 'node:path';
+import type { Request, Response, Router } from 'express';
 import { Router as createRouter } from 'express';
+import multer from 'multer';
 import { createSuccessResponse } from '../../common/api-response.js';
 import {
   readOrganisationId,
@@ -8,6 +10,11 @@ import {
   sendNotFoundResponse,
   sendValidationErrorResponse,
 } from '../../common/http.js';
+import {
+  ContractAttachmentService,
+  ContractAttachmentValidationError,
+  MAX_ATTACHMENT_SIZE_BYTES,
+} from './contracts.attachments.js';
 import {
   buildContractValidationErrorResponse,
   parseContractListQuery,
@@ -34,10 +41,23 @@ type ContractServiceLike = Pick<
   | 'deleteContract'
 >;
 
+type ContractAttachmentServiceLike = Pick<
+  ContractAttachmentService,
+  'createContractAttachment' | 'listContractAttachments'
+>;
+
 const defaultContractService = new ContractService(new PrismaContractRepository());
+const defaultContractAttachmentService = new ContractAttachmentService();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_ATTACHMENT_SIZE_BYTES,
+  },
+});
 
 export function buildContractsRouter(
   contractService: ContractServiceLike = defaultContractService,
+  contractAttachmentService: ContractAttachmentServiceLike = defaultContractAttachmentService,
 ): Router {
   const router = createRouter();
 
@@ -45,6 +65,30 @@ export function buildContractsRouter(
   router.get('/', (req, res) => handleListContracts(contractService, req, res));
   router.get('/:id', (req, res) => handleGetContract(contractService, req, res));
   router.get('/:id/events', (req, res) => handleListContractEvents(contractService, req, res));
+  router.get('/:id/attachments', (req, res) =>
+    handleListContractAttachments(contractAttachmentService, req, res),
+  );
+  router.post('/:id/attachments', (req, res) => {
+    upload.single('file')(req, res, (error) => {
+      if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          return sendValidationErrorResponse(res, 'Attachment upload is invalid', [
+            { path: 'file', message: 'PDF must be 10 MB or smaller' },
+          ]);
+        }
+
+        return sendValidationErrorResponse(res, 'Attachment upload is invalid', [
+          { path: 'file', message: error.message },
+        ]);
+      }
+
+      if (error) {
+        throw error;
+      }
+
+      return handleCreateContractAttachment(contractAttachmentService, req, res);
+    });
+  });
   router.patch('/:id', (req, res) => handleUpdateContract(contractService, req, res));
   router.post('/:id/finalize', (req, res) => handleFinalizeContract(contractService, req, res));
   router.post('/:id/archive', (req, res) => handleArchiveContract(contractService, req, res));
@@ -150,6 +194,93 @@ async function handleListContractEvents(
   } catch (error) {
     if (error instanceof ContractNotFoundError) {
       return sendNotFoundResponse(res, 'Contract not found');
+    }
+
+    throw error;
+  }
+}
+
+async function handleListContractAttachments(
+  contractAttachmentService: ContractAttachmentServiceLike,
+  req: Request,
+  res: Response,
+) {
+  const organisationId = readOrganisationId(req);
+  if (!organisationId) {
+    return sendValidationErrorResponse(res, 'Organisation scope is required', [
+      { path: 'headers.x-organisation-id', message: 'x-organisation-id header is required' },
+    ]);
+  }
+
+  const contractId = readRouteParam(req, 'id');
+  if (!contractId) {
+    return sendValidationErrorResponse(res, 'Contract id is required', [
+      { path: 'params.id', message: 'id is required' },
+    ]);
+  }
+
+  try {
+    const attachments = await contractAttachmentService.listContractAttachments(
+      organisationId,
+      contractId,
+    );
+    return res.status(200).json(createSuccessResponse(attachments));
+  } catch (error) {
+    if (error instanceof ContractNotFoundError) {
+      return sendNotFoundResponse(res, 'Contract not found');
+    }
+
+    throw error;
+  }
+}
+
+async function handleCreateContractAttachment(
+  contractAttachmentService: ContractAttachmentServiceLike,
+  req: Request,
+  res: Response,
+) {
+  const organisationId = readOrganisationId(req);
+  if (!organisationId) {
+    return sendValidationErrorResponse(res, 'Organisation scope is required', [
+      { path: 'headers.x-organisation-id', message: 'x-organisation-id header is required' },
+    ]);
+  }
+
+  const contractId = readRouteParam(req, 'id');
+  if (!contractId) {
+    return sendValidationErrorResponse(res, 'Contract id is required', [
+      { path: 'params.id', message: 'id is required' },
+    ]);
+  }
+
+  if (!req.file) {
+    return sendValidationErrorResponse(res, 'Attachment upload is invalid', [
+      { path: 'file', message: 'A single PDF file is required' },
+    ]);
+  }
+
+  try {
+    const attachment = await contractAttachmentService.createContractAttachment(
+      organisationId,
+      contractId,
+      {
+        originalName: sanitizeOriginalName(req.file.originalname),
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+        buffer: req.file.buffer,
+      },
+    );
+
+    return res.status(201).json(createSuccessResponse(attachment));
+  } catch (error) {
+    if (error instanceof ContractNotFoundError) {
+      return sendNotFoundResponse(res, 'Contract not found');
+    }
+
+    if (error instanceof ContractAttachmentValidationError) {
+      return sendValidationErrorResponse(res, 'Attachment upload is invalid', [
+        { path: 'file', message: error.message },
+      ]);
     }
 
     throw error;
@@ -301,3 +432,9 @@ async function handleDeleteContract(
   }
 }
 
+function sanitizeOriginalName(fileName: string) {
+  const trimmed = fileName.trim();
+  const normalized = path.basename(trimmed);
+
+  return normalized.length > 0 ? normalized : 'attachment.pdf';
+}

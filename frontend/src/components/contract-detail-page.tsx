@@ -1,14 +1,16 @@
-﻿'use client';
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   archiveContract,
   finalizeContract,
   getContract,
+  getContractAttachments,
   getContractEvents,
   toFriendlyApiError,
   updateContract,
+  uploadContractAttachment,
 } from '@/lib/api';
 import { getFriendlyApiErrorMessage } from '@/lib/error-copy';
 import { SkeletonCard } from '@/components/ui-skeletons';
@@ -17,6 +19,7 @@ import { OrganisationSelector } from '@/components/organisation-selector';
 import { useOrganisation } from '@/state/organisation-context';
 import type {
   ContractApiObject,
+  ContractAttachment,
   ContractAuditEvent,
   ContractItem,
   ContractUpdateInput,
@@ -81,6 +84,18 @@ function formatCurrency(value: number) {
     currency: 'USD',
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function formatDateLabel(value: string | null | undefined) {
@@ -335,8 +350,12 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
   >(null);
   const [isEditing, setIsEditing] = useState(false);
   const [auditEvents, setAuditEvents] = useState<ContractAuditEvent[]>([]);
+  const [attachments, setAttachments] = useState<ContractAttachment[]>([]);
   const [isLoadingAuditTrail, setIsLoadingAuditTrail] = useState(true);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(true);
   const [auditTrailError, setAuditTrailError] = useState<string | null>(null);
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -362,6 +381,29 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
       setDraft(null);
     } finally {
       setIsLoadingContract(false);
+    }
+  }, [activeOrganisationId, contractId]);
+
+  const refreshAttachments = useCallback(async () => {
+    if (!activeOrganisationId) {
+      return;
+    }
+
+    setIsLoadingAttachments(true);
+    setAttachmentsError(null);
+
+    try {
+      const nextAttachments = await getContractAttachments(
+        activeOrganisationId,
+        contractId,
+      );
+      setAttachments(nextAttachments);
+    } catch (loadError) {
+      const friendlyError = toFriendlyApiError(loadError);
+      setAttachmentsError(getFriendlyApiErrorMessage(friendlyError));
+      setAttachments([]);
+    } finally {
+      setIsLoadingAttachments(false);
     }
   }, [activeOrganisationId, contractId]);
 
@@ -395,6 +437,14 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
 
     return () => window.clearTimeout(timer);
   }, [refreshContract]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshAttachments();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [refreshAttachments]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -459,7 +509,6 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
   const hasActiveScope = Boolean(activeOrganisationId);
   const loadingState = hasActiveScope && (isLoading || isLoadingContract);
   const title = contract?.client_name ?? 'Contract record';
-  const contractReference = contract?.id ?? contractId;
   const activeScopeLabel =
     activeOrganisation?.name ?? 'No organisation selected';
   const statusLabel = contract?.status ?? 'Loading';
@@ -553,6 +602,32 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
     }
   };
 
+  const handleAttachmentUpload = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file || !activeOrganisationId || !contract) {
+      return;
+    }
+
+    setIsUploadingAttachment(true);
+    setAttachmentsError(null);
+    setError(null);
+
+    try {
+      await uploadContractAttachment(activeOrganisationId, contract.id, file);
+      await refreshAttachments();
+      setNotice('PDF attachment uploaded successfully.');
+    } catch (uploadError) {
+      const friendlyError = toFriendlyApiError(uploadError);
+      setAttachmentsError(getFriendlyApiErrorMessage(friendlyError));
+    } finally {
+      event.target.value = '';
+      setIsUploadingAttachment(false);
+    }
+  };
+
   const handleDiscard = () => {
     if (!contract) {
       return;
@@ -578,7 +653,7 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                   </span>
                   <span className="premium-pill">{workflowLabel}</span>
                   <span className="premium-pill">
-                    Ref {contractReference.slice(-8).toUpperCase()}
+                    PO {contract?.po_ref_no ?? 'Not assigned'}
                   </span>
                 </div>
                 <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-5xl lg:text-6xl lg:leading-[0.96]">
@@ -1180,6 +1255,75 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
                           </div>
                         </div>
                       </div>
+                      <div className="rounded-[1.6rem] border border-slate-200 bg-white/95 p-5 shadow-sm shadow-slate-200/50 sm:p-6">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="section-kicker">Attachments</p>
+                            <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                              PDF support docs
+                            </h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                              Upload a single PDF per request and keep reviewer-facing attachments with the contract record.
+                            </p>
+                          </div>
+                          <label className="inline-flex cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50">
+                            {isUploadingAttachment ? 'Uploading...' : 'Upload PDF'}
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              onChange={handleAttachmentUpload}
+                              disabled={isUploadingAttachment}
+                              className="sr-only"
+                            />
+                          </label>
+                        </div>
+
+                        {attachmentsError ? (
+                          <div className="mt-4 rounded-[1.2rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
+                            {attachmentsError}
+                          </div>
+                        ) : null}
+
+                        {isLoadingAttachments ? (
+                          <div className="mt-6 grid gap-3">
+                            <SkeletonCard className="min-h-[5.5rem]" />
+                            <SkeletonCard className="min-h-[5.5rem]" />
+                          </div>
+                        ) : attachments.length > 0 ? (
+                          <div className="mt-6 grid gap-3">
+                            {attachments.map((attachment) => (
+                              <div
+                                key={attachment.id}
+                                className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-4"
+                              >
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
+                                    <p className="text-sm font-semibold leading-6 text-slate-950">
+                                      {attachment.original_name}
+                                    </p>
+                                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                                      {formatBytes(attachment.file_size)} - {formatDateLabel(attachment.created_at)}
+                                    </p>
+                                  </div>
+                                  <a
+                                    href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8001'}/${attachment.storage_path}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition duration-150 ease-out hover:-translate-y-px hover:bg-slate-50"
+                                  >
+                                    Open file
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-6 rounded-[1.2rem] border border-dashed border-slate-300 bg-slate-50/80 px-4 py-4 text-sm leading-6 text-slate-600">
+                            No PDF attachments uploaded yet.
+                          </div>
+                        )}
+                      </div>
+
                       <div className="rounded-[1.6rem] border border-slate-200 bg-white/95 p-5 shadow-sm shadow-slate-200/50 sm:p-6">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>

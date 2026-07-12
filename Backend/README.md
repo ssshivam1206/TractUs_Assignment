@@ -2,18 +2,20 @@
 
 Node.js and Express backend for the TractUs Contract Operations Console assignment.
 
-## What it does
+## What It Does
 
-- stores organisation-scoped contracts in PostgreSQL
-- validates contract payloads
-- supports contract CRUD with draft-only update and delete rules
-- enforces the DRAFT -> FINALIZED -> ARCHIVED workflow
-- records audit events for create, update, finalize, archive, and delete
-- exposes backend search, filter, and pagination
-- publishes contract realtime events through SSE
-- seeds demo organisations, contracts, and audit history for review
+- Stores organisation-scoped contracts in PostgreSQL
+- Validates structured contract JSON payloads
+- Supports contract CRUD with draft-only update and delete rules
+- Enforces the `DRAFT -> FINALIZED -> ARCHIVED` workflow
+- Records audit events for create, update, finalize, archive, and delete
+- Supports backend search, filter, and pagination
+- Publishes contract realtime events through SSE
+- Serves OpenAPI JSON and Swagger UI docs
+- Accepts contract-scoped PDF attachments with local file storage
+- Seeds demo organisations, contracts, and audit history for review
 
-## Tech stack
+## Tech Stack
 
 - Node.js
 - Express
@@ -21,9 +23,18 @@ Node.js and Express backend for the TractUs Contract Operations Console assignme
 - Prisma
 - PostgreSQL
 - Zod
+- Multer
 - Vitest
 
-## Local setup
+## Environment Variables
+
+```env
+PORT=8001
+DATABASE_URL=postgresql://postgres:postgres@localhost:5438/tractus_backend
+UPLOADS_DIR=uploads
+```
+
+## Local Setup
 
 1. Install dependencies:
 
@@ -31,44 +42,75 @@ Node.js and Express backend for the TractUs Contract Operations Console assignme
 npm install
 ```
 
-2. Create a local env file from the example:
+2. Create a local env file:
 
 ```bash
 cp .env.example .env
 ```
 
-3. Add your database connection string:
-
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5438/tractus
-PORT=4000
-```
-
-4. Generate the Prisma client:
+3. Generate the Prisma client:
 
 ```bash
 npm run db:generate
 ```
 
-5. Run migrations:
+4. Run migrations:
 
 ```bash
 npm run db:migrate
 ```
 
-6. Seed the demo data:
+5. Seed demo data:
 
 ```bash
 npm run db:seed
 ```
 
-7. Start the backend:
+6. Start the backend:
 
 ```bash
 npm run dev
 ```
 
-## Available scripts
+Backend runs on:
+
+```text
+http://localhost:8001
+```
+
+## Docker Compose Setup
+
+From the repo root, start PostgreSQL and backend:
+
+```bash
+docker compose up --build -d
+```
+
+For older Docker Compose installations:
+
+```bash
+docker-compose up --build -d
+```
+
+Run production-style migrations:
+
+```bash
+docker compose run --rm backend npx prisma migrate deploy
+```
+
+Seed demo data:
+
+```bash
+docker compose run --rm backend npm run db:seed
+```
+
+Notes:
+
+- PostgreSQL is exposed on `localhost:5438`
+- Backend is exposed on `http://localhost:8001`
+- Uploaded PDFs persist in the Docker volume `tractus_backend_uploads`
+
+## Available Scripts
 
 ```bash
 npm run dev
@@ -81,21 +123,32 @@ npm run db:migrate
 npm run db:seed
 ```
 
-## Seed data
+## Seed Data
 
 The seed command creates:
 
 - 2 organisations
-- 5 contracts across both organisations
-- mixed DRAFT, FINALIZED, and ARCHIVED statuses
-- matching audit trail entries for seeded lifecycle changes
+- 10 contracts total, split across the 2 demo organisations
+- Mixed `DRAFT`, `FINALIZED`, and `ARCHIVED` statuses
+- Matching audit trail entries for seeded lifecycle changes
 
-The script is deterministic and only replaces its own demo contract and event records, so rerunning it is safe for local review.
+The seed script is deterministic and can be rerun safely for local review.
 
-## Key routes
+## API Docs
+
+```text
+Swagger UI: GET /docs
+OpenAPI JSON: GET /docs/openapi.json
+```
+
+The organisation-scoped contract routes require the `x-organisation-id` header.
+
+## Key Routes
 
 ```text
 GET    /health
+GET    /docs
+GET    /docs/openapi.json
 GET    /organisations
 POST   /organisations
 GET    /contracts
@@ -106,24 +159,23 @@ DELETE /contracts/:id
 POST   /contracts/:id/finalize
 POST   /contracts/:id/archive
 GET    /contracts/:id/events
+GET    /contracts/:id/attachments
+POST   /contracts/:id/attachments
 GET    /events/contracts
 ```
 
-## Current status against the plan
+## PDF Attachment Notes
 
-Completed:
+- Only `application/pdf` is accepted
+- Maximum upload size is `10 MB`
+- Files are stored under `UPLOADS_DIR`
+- Metadata is stored in PostgreSQL through the `ContractAttachment` table
+- Attachments are scoped by both contract and organisation
 
-- Phase 1 to Phase 10 core backend implementation
-- organisation and contract APIs
-- validation rules
-- search, filter, and pagination
-- workflow actions
-- audit trail
-- SSE updates
-- repeatable demo seed data
-- backend tests for core behavior
+## Verification
 
-Still left:
-
-- Phase 11 deployment and production deployment notes
-- final reviewer-oriented deployment verification steps
+```bash
+npm run lint
+npm run build
+npm test
+```

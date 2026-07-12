@@ -1,4 +1,4 @@
-﻿import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
+import type { ApiErrorResponse, ApiSuccessResponse } from '@/types/api';
 
 export type ApiClientOptions = {
   baseUrl?: string;
@@ -7,7 +7,7 @@ export type ApiClientOptions = {
 
 export type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
-  body?: unknown;
+  body?: BodyInit | Record<string, unknown> | unknown[];
   organisationId?: string;
   headers?: HeadersInit;
   signal?: AbortSignal;
@@ -38,10 +38,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       headers: buildHeaders({
         organizationId: requestOptions.organisationId ?? options.organisationId,
         headers: requestOptions.headers,
-        hasBody: requestOptions.body !== undefined,
+        body: requestOptions.body,
       }),
-      body:
-        requestOptions.body === undefined ? undefined : JSON.stringify(requestOptions.body),
+      body: serializeRequestBody(requestOptions.body),
       signal: requestOptions.signal,
     });
 
@@ -69,15 +68,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
 function buildHeaders({
   organizationId,
   headers,
-  hasBody,
+  body,
 }: {
   organizationId?: string;
   headers?: HeadersInit;
-  hasBody: boolean;
+  body?: RequestOptions['body'];
 }): Headers {
   const nextHeaders = new Headers(headers);
 
-  if (hasBody && !nextHeaders.has('content-type')) {
+  if (body !== undefined && shouldSerializeBodyAsJson(body) && !nextHeaders.has('content-type')) {
     nextHeaders.set('content-type', 'application/json');
   }
 
@@ -86,6 +85,22 @@ function buildHeaders({
   }
 
   return nextHeaders;
+}
+
+function serializeRequestBody(body: RequestOptions['body']): BodyInit | undefined {
+  if (body === undefined) {
+    return undefined;
+  }
+
+  if (shouldSerializeBodyAsJson(body)) {
+    return JSON.stringify(body);
+  }
+
+  return body as BodyInit;
+}
+
+function shouldSerializeBodyAsJson(body: RequestOptions['body']) {
+  return !(body instanceof FormData || body instanceof Blob || typeof body === 'string' || body instanceof URLSearchParams || body instanceof ArrayBuffer);
 }
 
 function parseJson(text: string): unknown {

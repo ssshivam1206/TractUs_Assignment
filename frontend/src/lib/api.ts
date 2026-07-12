@@ -1,5 +1,6 @@
-﻿import type {
+import type {
   ContractApiObject,
+  ContractAttachment,
   ContractAuditEvent,
   ContractCreateInput,
   ContractListFilters,
@@ -70,6 +71,30 @@ export async function getContractEvents(
   });
 }
 
+export async function getContractAttachments(
+  organisationId: string,
+  contractId: string,
+): Promise<ContractAttachment[]> {
+  return client.request<ContractAttachment[]>(`/contracts/${contractId}/attachments`, {
+    organisationId,
+  });
+}
+
+export async function uploadContractAttachment(
+  organisationId: string,
+  contractId: string,
+  file: File,
+): Promise<ContractAttachment> {
+  const formData = new FormData();
+  formData.set('file', file);
+
+  return client.request<ContractAttachment>(`/contracts/${contractId}/attachments`, {
+    method: 'POST',
+    organisationId,
+    body: formData,
+  });
+}
+
 export async function createContract(
   organisationId: string,
   payload: ContractCreateInput,
@@ -128,4 +153,3 @@ export function toFriendlyApiError(error: unknown): NormalizedApiError {
 }
 
 export { getApiBaseUrl };
-

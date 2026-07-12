@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tractus-postgres-compose
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tractus_backend
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5438:5432"
+    volumes:
+      - tractus_postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./Backend
+    container_name: tractus-backend-compose
+    depends_on:
+      - postgres
+    environment:
+      PORT: 8001
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/tractus_backend
+      UPLOADS_DIR: uploads
+    ports:
+      - "8001:8001"
+    volumes:
+      - tractus_backend_uploads:/app/uploads
+
+volumes:
+  tractus_postgres_data:
+  tractus_backend_uploads:

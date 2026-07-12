@@ -30,6 +30,17 @@ export type ContractEventApiObject = {
   created_at: string;
 };
 
+export type ContractAttachmentApiObject = {
+  id: string;
+  contract_id: string;
+  organisation_id: string;
+  original_name: string;
+  mime_type: string;
+  file_size: number;
+  storage_path: string;
+  created_at: string;
+};
+
 export type ContractRealtimeEventName =
   | 'contract.created'
   | 'contract.updated'
@@ -65,6 +76,7 @@ export type ContractListResponse = {
 };
 
 export type ContractEventListResponse = ContractEventApiObject[];
+export type ContractAttachmentListResponse = ContractAttachmentApiObject[];
 
 export type ContractCreateInput = ContractFieldData;
 export type ContractUpdateInput = Partial<ContractFieldData>;

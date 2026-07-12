@@ -65,9 +65,6 @@ function getStatusTone(status: ContractStatus) {
   }
 }
 
-function formatContractKey(contractId: string) {
-  return contractId.slice(-8).toUpperCase();
-}
 
 function isEmptyFilters(filters: ContractListFilters) {
   return !filters.clientName && !filters.contractId && !filters.status;
@@ -89,7 +86,7 @@ function ContractCard({ contract }: { contract: ContractApiObject }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold tracking-tight text-slate-950">{contract.client_name}</p>
-            <p className="mt-1 text-xs text-slate-500">Ref {formatContractKey(contract.id)} - Updated {formatDateTime(contract.updated_at)}</p>
+            <p className="mt-1 text-xs text-slate-500">PO {contract.po_ref_no} - Updated {formatDateTime(contract.updated_at)}</p>
           </div>
           <span className={`status-pill ${getStatusTone(contract.status)}`}>{contract.status}</span>
         </div>
@@ -313,7 +310,7 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
                     <div key={contract.id} className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.72fr_0.9fr_0.65fr] gap-3 border-b border-slate-100 px-5 py-4 text-sm text-slate-700 transition duration-150 last:border-b-0 hover:bg-slate-50/70">
                       <div className="min-w-0">
                         <p className="truncate font-semibold tracking-tight text-slate-950">{contract.client_name}</p>
-                        <p className="mt-1 truncate text-xs text-slate-500">Ref {formatContractKey(contract.id)}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">PO {contract.po_ref_no}</p>
                       </div>
                       <span className="font-medium text-slate-900">{contract.po_ref_no}</span>
                       <span>{formatDateOnly(contract.po_date)}</span>
@@ -340,4 +337,3 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
     </section>
   );
 }
-
