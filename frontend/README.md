@@ -28,7 +28,21 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8001
 For deployed GCP VM usage:
 
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://YOUR_GCP_VM_EXTERNAL_IP:8001
+NEXT_PUBLIC_API_BASE_URL=http://136.114.175.127:8001
+```
+
+## Docker Deployment
+
+From the repo root, build the frontend with the public backend URL because this value is used by the browser:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://136.114.175.127:8001 docker-compose up --build -d frontend
+```
+
+The deployed frontend runs at:
+
+```text
+http://136.114.175.127:3000
 ```
 
 ## Local Setup

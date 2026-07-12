@@ -4,13 +4,11 @@ Full-stack engineering assignment for a multi-tenant Contract Operations Console
 
 ## Deployed URLs
 
-Update these values after the GCP VM deployment is live:
-
 ```text
-Frontend: http://YOUR_GCP_VM_EXTERNAL_IP:3000
-Backend API: http://YOUR_GCP_VM_EXTERNAL_IP:8001
-API docs: http://YOUR_GCP_VM_EXTERNAL_IP:8001/docs
-Health check: http://YOUR_GCP_VM_EXTERNAL_IP:8001/health
+Frontend: http://136.114.175.127:3000
+Backend API: http://136.114.175.127:8001
+API docs: http://136.114.175.127:8001/docs
+Health check: http://136.114.175.127:8001/health
 ```
 
 ## Evaluation Access
@@ -38,7 +36,7 @@ No login is required for this assignment build.
 - Seed data with 2 organisations and 10 contracts across multiple statuses
 - OpenAPI JSON and Swagger UI docs
 - PDF attachment upload with local disk storage and database metadata
-- Docker Compose local setup for PostgreSQL and backend
+- Docker Compose setup for PostgreSQL, backend, and frontend
 
 ## Tech Stack
 
@@ -67,61 +65,47 @@ Frontend variables:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8001
 ```
 
-For GCP VM deployment, replace localhost with the VM external IP where needed:
+For the deployed GCP VM, build the frontend with:
 
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://YOUR_GCP_VM_EXTERNAL_IP:8001
+NEXT_PUBLIC_API_BASE_URL=http://136.114.175.127:8001
 ```
 
 ## Local Development
 
-### Option 1: Backend and PostgreSQL with Docker Compose
+### Option 1: Docker Compose
 
 From the repo root:
 
 ```bash
-docker compose up --build -d
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8001 docker-compose up --build -d
 ```
 
-If your machine has the older Compose binary, use:
+If you use Docker Compose v2, this also works:
 
 ```bash
-docker-compose up --build -d
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8001 docker compose up --build -d
 ```
 
 Run migrations:
 
 ```bash
-docker compose run --rm backend npx prisma migrate deploy
+docker-compose run --rm backend npx prisma migrate deploy
 ```
 
 Seed demo data:
 
 ```bash
-docker compose run --rm backend npm run db:seed
+docker-compose run --rm backend npm run db:seed
 ```
 
-Backend URLs:
+URLs:
 
 ```text
+Frontend: http://localhost:3000
 API: http://localhost:8001
 Docs: http://localhost:8001/docs
 Health: http://localhost:8001/health
-```
-
-Then start the frontend locally:
-
-```bash
-cd frontend
-npm install
-cp .env.example .env.local
-npm run dev
-```
-
-Frontend URL:
-
-```text
-http://localhost:3000
 ```
 
 ### Option 2: Run Both Apps Manually
@@ -157,10 +141,9 @@ The recommended deployment path for this assignment is one GCP Compute Engine VM
 4. SSH into the VM.
 5. Install Docker, Docker Compose, and Git.
 6. Clone the GitHub repository.
-7. Run the backend and PostgreSQL with Docker Compose.
+7. Build and start PostgreSQL, backend, and frontend with Docker Compose.
 8. Run migrations and seed data.
-9. Start or deploy the frontend with `NEXT_PUBLIC_API_BASE_URL` pointing to the VM backend URL.
-10. Update this README with the final deployed URLs.
+9. Verify the deployed URLs above.
 
 VM setup commands:
 
@@ -177,15 +160,22 @@ docker ps
 docker-compose --version
 ```
 
-Deploy backend and database:
+Deploy the app:
 
 ```bash
-git clone YOUR_GITHUB_REPO_URL
+git clone https://github.com/ssshivam1206/TractUs_Assignment.git
 cd TractUs_Assignment
-docker-compose up --build -d
+NEXT_PUBLIC_API_BASE_URL=http://136.114.175.127:8001 docker-compose up --build -d
+```
+
+Run database setup:
+
+```bash
 docker-compose run --rm backend npx prisma migrate deploy
 docker-compose run --rm backend npm run db:seed
 ```
+
+If old Docker Compose v1 hits `KeyError: ContainerConfig` while recreating a service, remove the exited service container and run `docker-compose up -d` again.
 
 ## Test Commands
 
@@ -206,20 +196,20 @@ npm run lint
 npm run build
 ```
 
-Note: On the local Windows machine used during development, `next build` can fail after compilation with `spawn EPERM`. Frontend lint passes locally, and the build should be verified on the deployment VM or CI environment.
+Note: On the local Windows machine used during development, `next build` can fail after compilation with `spawn EPERM`. Frontend lint passes locally, and the production build should also be verified on the deployment VM or CI environment.
 
 ## API Reference
 
 Swagger UI is available at:
 
 ```text
-http://localhost:8001/docs
+http://136.114.175.127:8001/docs
 ```
 
 OpenAPI JSON is available at:
 
 ```text
-http://localhost:8001/docs/openapi.json
+http://136.114.175.127:8001/docs/openapi.json
 ```
 
 ## Project Structure
