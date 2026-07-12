@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -121,13 +121,17 @@ function validateContractDraft(rawText: string): DraftValidationResult {
     return { ok: false, issues };
   }
 
+  const clientName = isNonEmptyString(parsed.client_name) ? parsed.client_name.trim() : '';
+  const poRefNo = isNonEmptyString(parsed.po_ref_no) ? parsed.po_ref_no.trim() : '';
+  const poDate = isNonEmptyString(parsed.po_date) ? parsed.po_date.trim() : '';
+
   return {
     ok: true,
     value: {
       ...(parsed as Record<string, unknown>),
-      client_name: parsed.client_name.trim(),
-      po_ref_no: parsed.po_ref_no.trim(),
-      po_date: parsed.po_date.trim(),
+      client_name: clientName,
+      po_ref_no: poRefNo,
+      po_date: poDate,
       payment_terms: parsed.payment_terms === undefined ? undefined : String(parsed.payment_terms).trim(),
       delivery_terms: parsed.delivery_terms === undefined ? undefined : String(parsed.delivery_terms).trim(),
       items: normalizedItems,
