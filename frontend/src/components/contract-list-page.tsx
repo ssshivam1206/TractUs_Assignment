@@ -146,8 +146,8 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
   const requestFilters = useMemo(
     () => ({
       status: filters.status,
-      clientName: filters.clientName.trim() || undefined,
-      contractId: filters.contractId.trim() || undefined,
+      clientName: (filters.clientName ?? '').trim() || undefined,
+      contractId: (filters.contractId ?? '').trim() || undefined,
       page: filters.page,
       limit: filters.limit,
     }),
@@ -254,11 +254,11 @@ export function ContractListPage({ organisationId }: { organisationId: string | 
       <div className="border-b border-slate-200/80 bg-slate-50/80 px-5 py-5 sm:px-6 lg:px-7">
         <div className="grid gap-3 xl:grid-cols-4">
           <FilterField label="Client name">
-            <input type="search" value={filters.clientName} onChange={(event) => handleTextFilterChange('clientName', event.target.value)} placeholder="Search by client" disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100" />
+            <input type="search" value={filters.clientName ?? ''} onChange={(event) => handleTextFilterChange('clientName', event.target.value)} placeholder="Search by client" disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100" />
           </FilterField>
 
           <FilterField label="Contract id">
-            <input type="search" value={filters.contractId} onChange={(event) => handleTextFilterChange('contractId', event.target.value)} placeholder="Search by id" disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100" />
+            <input type="search" value={filters.contractId ?? ''} onChange={(event) => handleTextFilterChange('contractId', event.target.value)} placeholder="Search by id" disabled={!hasSelection} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100" />
           </FilterField>
 
           <FilterField label="Status">
